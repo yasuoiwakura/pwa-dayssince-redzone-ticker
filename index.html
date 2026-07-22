@@ -323,6 +323,7 @@
   <div class="modal-actions">
     <button id="addTimerBtn">+ Neu</button>
     <button id="resetDefaultsBtn">Standard laden</button>
+    <button id="refreshBtn" class="btn-danger">App aktualisieren</button>
     <button id="closeSettingsBtn" class="btn-primary">Fertig</button>
   </div>
 </dialog>
@@ -876,6 +877,22 @@
     });
     document.getElementById('resetDefaultsBtn').addEventListener('click', function() {
       loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderCfgList(); renderAll(); });
+    });
+    document.getElementById('refreshBtn').addEventListener('click', function() {
+      document.getElementById('settingsModal').close();
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+        });
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function(reg) {
+          if (reg) reg.unregister();
+          window.location.reload();
+        });
+      } else {
+        window.location.reload();
+      }
     });
     document.getElementById('editForm').addEventListener('submit', function(e) {
       e.preventDefault();
