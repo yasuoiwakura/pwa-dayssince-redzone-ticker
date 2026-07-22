@@ -55,57 +55,64 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: clamp(10px, 3vh, 24px);
+    gap: clamp(6px, 1.5vh, 16px);
     overflow-y: auto;
   }
 
   .timer-card {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: clamp(6px, 2vh, 14px) 0;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 10px;
+    padding: clamp(4px, 1vh, 10px) 0;
     border-radius: 8px;
   }
+  .timer-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+    min-width: 0;
+    gap: 1px;
+  }
   .timer-name {
-    font-size: clamp(1.2rem, 5vw, 2.2rem);
+    font-size: clamp(1rem, 4vw, 1.8rem);
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     transition: color 0.5s;
-    text-align: center;
     line-height: 1.2;
   }
   .timer-value {
-    font-size: clamp(2.4rem, 15vw, 6.5rem);
+    font-size: clamp(1.8rem, 10vw, 4rem);
     font-weight: bold;
-    line-height: 1.15;
+    line-height: 1.1;
     transition: color 0.5s;
-    text-shadow: 0 0 25px currentColor;
+    text-shadow: 0 0 20px currentColor;
   }
   .timer-sub {
-    font-size: clamp(0.65rem, 2.5vw, 0.85rem);
+    font-size: clamp(0.55rem, 2vw, 0.75rem);
     opacity: 0.4;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     transition: color 0.5s;
   }
-  .timer-reset {
-    background: none;
-    border: 1px solid currentColor;
-    color: inherit;
-    font-family: inherit;
-    font-size: clamp(0.6rem, 2vw, 0.75rem);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    padding: 4px 14px;
+  .timer-done {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(42px, 8vw, 64px);
+    background: #22aa22;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: clamp(1.2rem, 5vw, 2rem);
     cursor: pointer;
-    border-radius: 4px;
-    opacity: 0.4;
-    transition: opacity 0.2s;
-    margin-top: 2px;
+    flex-shrink: 0;
+    transition: background 0.15s;
   }
-  .timer-reset:hover { opacity: 1; }
+  .timer-done:hover { background: #2ccc2c; }
+  .timer-done:active { background: #188818; }
 
   .wake-status {
     position: fixed;
@@ -522,7 +529,7 @@
     var h = '';
     for (var i = 0; i < timers.length; i++) h += card(i, timers[i]);
     c.innerHTML = h;
-    var btns = c.querySelectorAll('.timer-reset');
+    var btns = c.querySelectorAll('.timer-done');
     for (var j = 0; j < btns.length; j++) {
       (function(idx) {
         btns[idx].addEventListener('click', function() {
@@ -536,10 +543,12 @@
 
   function card(i, t) {
     return '<div class="timer-card" id="c'+i+'">'
+      + '<div class="timer-left">'
       + '<div class="timer-name" style="color:#33ff33" id="n'+i+'">' + esc(t.name) + '</div>'
       + '<div class="timer-value" style="color:#33ff33" id="v'+i+'">0d</div>'
       + '<div class="timer-sub" style="color:#33ff33" id="s'+i+'">' + unitLabel(t.unit) + '</div>'
-      + '<button class="timer-reset" style="color:#33ff33" data-idx="'+i+'">Reset</button>'
+      + '</div>'
+      + '<button class="timer-done" data-idx="'+i+'">&#10003;</button>'
       + '</div>';
   }
 
@@ -557,8 +566,6 @@
       if (el2) { el2.textContent = f.main; el2.style.color = c; }
       var el3 = document.getElementById('s'+i);
       if (el3) { el3.textContent = f.sub || unitLabel(t.unit); el3.style.color = c; }
-      var card = document.getElementById('c'+i);
-      if (card) { var rb = card.querySelector('.timer-reset'); if (rb) rb.style.color = c; }
     }
   }
 
