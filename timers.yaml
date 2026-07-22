@@ -1,5 +1,6 @@
 # Red Zone Ticker - Standard-Timer
 # Gelb-/Rot-Schwellen in der gleichen Einheit wie der Timer
+wake_lock: true
 timers:
   - name: Zahnseide
     unit: hours

@@ -306,6 +306,10 @@
       <option value="hide">Immer verstecken</option>
     </select>
   </div>
+  <div class="form-group checkbox">
+    <input id="wakeLockCheck" type="checkbox">
+    <label for="wakeLockCheck">Screen Lock (Bildschirm an)</label>
+  </div>
   <div class="modal-actions">
     <button id="addTimerBtn">+ Neu</button>
     <button id="resetDefaultsBtn">Standard laden</button>
@@ -514,6 +518,12 @@
     localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(cfg));
   }
 
+  function initWakeLock() {
+    if (localStorage.getItem('redzone_wake_lock') === null) {
+      localStorage.setItem('redzone_wake_lock', 'true');
+    }
+  }
+
   function loadDefaultsFromYAML() {
     return fetch(DEFAULT_YAML_URL)
       .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
@@ -521,6 +531,9 @@
         var p = parseYAML(text);
         if (p && p.timers && Array.isArray(p.timers) && p.timers.length > 0) {
           p.timers.forEach(normalizeTimer);
+          if (p.wake_lock === false || p.wake_lock === 'false') {
+            localStorage.setItem('redzone_wake_lock', 'false');
+          }
           return p.timers;
         }
         return defaultConfig();
@@ -529,6 +542,7 @@
   }
 
   function initConfig() {
+    initWakeLock();
     var c = loadConfig();
     if (c) { c.forEach(normalizeTimer); timers = c; renderAll(); return Promise.resolve(); }
     return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); });
@@ -642,8 +656,17 @@
   }
 
   // ─── Wake Lock ───
+  function wakeEnabled() {
+    return localStorage.getItem('redzone_wake_lock') !== 'false';
+  }
+
   function reqWake() {
     if (!('wakeLock' in navigator)) return;
+    if (!wakeEnabled()) {
+      var el = document.getElementById('wakeStatus');
+      if (el) el.textContent = '○ Screen Lock (aus)';
+      return;
+    }
     navigator.wakeLock.request('screen').then(function(l) {
       wakeLock = l;
       var e = document.getElementById('wakeStatus');
@@ -666,6 +689,8 @@
   function openSettings() {
     renderCfgList();
     updateInstallBtn();
+    var wakeCheck = document.getElementById('wakeLockCheck');
+    if (wakeCheck) wakeCheck.checked = wakeEnabled();
     document.getElementById('settingsModal').showModal();
   }
 
@@ -763,6 +788,14 @@
       installMode.addEventListener('change', function() {
         localStorage.setItem('redzone_install_mode', this.value);
         updateInstallBtn();
+      });
+    }
+
+    var wakeCheck = document.getElementById('wakeLockCheck');
+    if (wakeCheck) {
+      wakeCheck.addEventListener('change', function() {
+        localStorage.setItem('redzone_wake_lock', this.checked ? 'true' : 'false');
+        reqWake();
       });
     }
 

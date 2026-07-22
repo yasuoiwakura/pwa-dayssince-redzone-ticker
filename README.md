@@ -40,6 +40,7 @@ Or deploy to GitHub Pages / Netlify / any static host.
 Default timers are loaded from `timers.yaml`. Once loaded, they are managed in `localStorage`. Use the gear icon (⚙) to add, edit, or remove timers.
 
 ```yaml
+wake_lock: true           # screen wake lock on/off
 timers:
   - name: Example
     unit: hours           # hours | days | minutes
