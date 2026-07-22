@@ -663,16 +663,6 @@
     document.getElementById('settingsModal').showModal();
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
-    var hideCheck = document.getElementById('hideInstallCheck');
-    if (hideCheck) {
-      hideCheck.addEventListener('change', function() {
-        localStorage.setItem('redzone_hide_install', this.checked ? 'true' : 'false');
-        updateInstallBtn();
-      });
-    }
-  });
-
   function renderCfgList() {
     var c = document.getElementById('timerConfigList');
     if (!timers.length) { c.innerHTML = '<div class="empty-state">Keine Timer</div>'; return; }
@@ -759,6 +749,14 @@
 
     var installBtn = document.getElementById('installBtn');
     if (installBtn) installBtn.addEventListener('click', handleInstall);
+
+    var hideCheck = document.getElementById('hideInstallCheck');
+    if (hideCheck) {
+      hideCheck.addEventListener('change', function() {
+        localStorage.setItem('redzone_hide_install', this.checked ? 'true' : 'false');
+        updateInstallBtn();
+      });
+    }
 
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
     document.getElementById('closeSettingsBtn').addEventListener('click', function() {
