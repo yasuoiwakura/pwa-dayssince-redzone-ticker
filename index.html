@@ -408,6 +408,22 @@
     return lines.length ? mapping(0) : {};
   }
 
+  function safeEval(s) {
+    if (typeof s !== 'string') return s;
+    s = s.trim();
+    if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+    if (/^[\d+\-*/().\s]+$/.test(s)) {
+      try { return Function('"use strict"; return (' + s + ')')(); } catch(e) {}
+    }
+    return s;
+  }
+
+  function normalizeTimer(t) {
+    t.yellow_after = safeEval(t.yellow_after);
+    t.red_after = safeEval(t.red_after);
+    return t;
+  }
+
   // ─── Timer Config ───
   function defaultConfig() {
     return [
@@ -447,7 +463,10 @@
       .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
       .then(function(text) {
         var p = parseYAML(text);
-        if (p && p.timers && Array.isArray(p.timers) && p.timers.length > 0) return p.timers;
+        if (p && p.timers && Array.isArray(p.timers) && p.timers.length > 0) {
+          p.timers.forEach(normalizeTimer);
+          return p.timers;
+        }
         return defaultConfig();
       })
       .catch(function() { return defaultConfig(); });
@@ -455,7 +474,7 @@
 
   function initConfig() {
     var c = loadConfig();
-    if (c) { timers = c; renderAll(); return Promise.resolve(); }
+    if (c) { c.forEach(normalizeTimer); timers = c; renderAll(); return Promise.resolve(); }
     return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); });
   }
 
@@ -484,6 +503,7 @@
   function getColor(elapsed, t) {
     var ym = t.yellow_after * unitMs(t.unit);
     var rm = t.red_after * unitMs(t.unit);
+    if (isNaN(ym) || isNaN(rm)) return '#33ff33';
     if (elapsed < ym) return '#33ff33';
     if (elapsed < rm) return '#ffcc00';
     return '#ff3333';
@@ -659,7 +679,14 @@
       saveEdit(new FormData(this));
     });
 
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          keys.forEach(function(k) { if (k !== 'redzone-v2') caches.delete(k); });
+        });
+      }
+    }
   });
 })();
 </script>

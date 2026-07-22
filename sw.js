@@ -1,4 +1,4 @@
-const CACHE = 'redzone-v1';
+const CACHE = 'redzone-v2';
 const URLS = ['index.html', 'manifest.json', 'timers.yaml'];
 
 self.addEventListener('install', function(e) {
