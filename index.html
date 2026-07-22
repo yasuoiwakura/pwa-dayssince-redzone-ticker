@@ -714,6 +714,8 @@
     } else if (mode === 'hide') {
       themeColor.content = '#121212';
       iOSBar.content = 'black-translucent';
+      var modal = document.getElementById('settingsModal');
+      if (modal && modal.open) modal.close();
       try {
         var el = document.documentElement;
         if (el.requestFullscreen && !document.fullscreenElement) {
