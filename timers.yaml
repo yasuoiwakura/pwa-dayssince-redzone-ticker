@@ -1,0 +1,18 @@
+# Red Zone Ticker - Standard-Timer
+# Gelb-/Rot-Schwellen in der gleichen Einheit wie der Timer
+timers:
+  - name: Zahnseide
+    unit: hours
+    show_minutes: true
+    yellow_after: 24*3
+    red_after: 24*4
+  - name: Water the plants
+    unit: days
+    show_minutes: true
+    yellow_after: 24*2
+    red_after: 24*4
+  - name: Refill Plant Water
+    unit: minutes
+    show_minutes: false
+    yellow_after: 24*7
+    red_after: 24*10

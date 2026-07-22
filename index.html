@@ -8,179 +8,659 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚨</text></svg>">
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; overflow: hidden; }
+  html, body { height: 100%; }
   body {
     background: #121212;
-    color: #ff3333;
+    color: #fff;
     font-family: 'Courier New', Courier, monospace;
     font-variant-numeric: tabular-nums;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     min-height: 100dvh;
-    padding: 16px;
+    padding: 20px 16px;
     user-select: none;
     -webkit-user-select: none;
-    gap: 24px;
+    gap: 12px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
   }
   h1 {
-    font-size: clamp(1rem, 4vw, 1.5rem);
-    color: #ff5555;
+    font-size: clamp(1.4rem, 6vw, 2.4rem);
+    color: #ff3333;
     text-transform: uppercase;
-    letter-spacing: 0.2em;
-    opacity: 0.8;
-    text-align: center;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 30px rgba(255,51,51,0.25);
   }
-  .timer-container {
+  #settingsBtn {
+    background: none;
+    border: 1px solid #444;
+    color: #aaa;
+    font-size: 1.3rem;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 6px 10px;
+    transition: border-color 0.2s, color 0.2s;
+    line-height: 1;
+  }
+  #settingsBtn:hover { border-color: #ff3333; color: #fff; }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(10px, 3vh, 24px);
+    overflow-y: auto;
+  }
+
+  .timer-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    width: 100%;
-    max-width: 500px;
+    gap: 4px;
+    padding: clamp(6px, 2vh, 14px) 0;
+    border-radius: 8px;
   }
-  .timer-label {
-    font-size: clamp(0.8rem, 3vw, 1rem);
-    color: #ff8888;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-  .timer-display {
-    font-size: clamp(2.5rem, 12vw, 5rem);
+  .timer-name {
+    font-size: clamp(1.2rem, 5vw, 2.2rem);
     font-weight: bold;
-    line-height: 1.1;
-    text-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: color 0.5s;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .timer-value {
+    font-size: clamp(2.4rem, 15vw, 6.5rem);
+    font-weight: bold;
+    line-height: 1.15;
+    transition: color 0.5s;
+    text-shadow: 0 0 25px currentColor;
+  }
+  .timer-sub {
+    font-size: clamp(0.65rem, 2.5vw, 0.85rem);
+    opacity: 0.4;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: color 0.5s;
   }
   .timer-reset {
     background: none;
-    border: 1px solid #ff3333;
-    color: #ff3333;
+    border: 1px solid currentColor;
+    color: inherit;
     font-family: inherit;
-    font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+    font-size: clamp(0.6rem, 2vw, 0.75rem);
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    padding: 6px 18px;
+    padding: 4px 14px;
     cursor: pointer;
     border-radius: 4px;
-    transition: background 0.2s, color 0.2s;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    margin-top: 2px;
   }
-  .timer-reset:hover, .timer-reset:active {
-    background: #ff3333;
-    color: #121212;
-  }
+  .timer-reset:hover { opacity: 1; }
+
   .wake-status {
     position: fixed;
-    bottom: 12px;
-    font-size: 0.65rem;
-    opacity: 0.35;
+    bottom: 10px;
+    right: 14px;
+    font-size: 0.6rem;
+    opacity: 0.3;
     color: #ff8888;
   }
+
+  dialog {
+    background: #1a1a1a;
+    color: #eee;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 460px;
+    width: 90vw;
+    font-family: 'Courier New', Courier, monospace;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  dialog::backdrop { background: rgba(0,0,0,0.7); }
+  dialog h2 {
+    color: #ff5555;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .form-group label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #999;
+  }
+  .form-group input, .form-group select {
+    background: #222;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    width: 100%;
+  }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: #ff5555; }
+  .form-group.checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .form-group.checkbox input { width: 18px; height: 18px; }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .modal-actions button {
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.8rem;
+    padding: 8px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid #444;
+    background: #222;
+    color: #ccc;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .modal-actions button:hover { background: #333; color: #fff; }
+  .modal-actions .btn-primary { background: #ff3333; color: #121212; border-color: #ff3333; }
+  .modal-actions .btn-primary:hover { background: #ff5555; }
+  .modal-actions .btn-danger { border-color: #ff3333; color: #ff3333; }
+  .modal-actions .btn-danger:hover { background: #ff3333; color: #121212; }
+
+  .timer-config-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #2a2a2a;
+    gap: 8px;
+  }
+  .timer-config-item:last-child { border-bottom: none; }
+  .timer-config-item .info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .timer-config-item .info .name {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .timer-config-item .info .meta { font-size: 0.65rem; color: #777; }
+  .timer-config-item .remove-btn {
+    background: none;
+    border: none;
+    color: #ff3333;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .timer-config-item .remove-btn:hover { background: #ff333322; }
+
+  .empty-state {
+    text-align: center;
+    color: #666;
+    font-size: 0.85rem;
+    padding: 20px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
   @media (max-width: 400px) {
-    body { gap: 16px; padding: 12px; }
+    body { padding: 12px 10px; gap: 8px; }
+    dialog { padding: 16px; }
   }
 </style>
 </head>
 <body>
 
-<h1>Red Zone Ticker</h1>
+<header>
+  <h1>RED ZONE</h1>
+  <button id="settingsBtn" title="Timer verwalten">⚙</button>
+</header>
 
-<div class="timer-container">
-  <div class="timer-label">Timer 1</div>
-  <div class="timer-display" id="timer0">00:00:00</div>
-  <button class="timer-reset" data-index="0">Reset</button>
-</div>
+<main id="timers"></main>
 
-<div class="timer-container">
-  <div class="timer-label">Timer 2</div>
-  <div class="timer-display" id="timer1">00:00:00</div>
-  <button class="timer-reset" data-index="1">Reset</button>
-</div>
+<div class="wake-status" id="wakeStatus">● Screen Lock</div>
 
-<div class="timer-container">
-  <div class="timer-label">Timer 3</div>
-  <div class="timer-display" id="timer2">00:00:00</div>
-  <button class="timer-reset" data-index="2">Reset</button>
-</div>
+<dialog id="settingsModal">
+  <h2>Timer verwalten</h2>
+  <div id="timerConfigList"></div>
+  <div class="modal-actions">
+    <button id="addTimerBtn">+ Neu</button>
+    <button id="resetDefaultsBtn">Standard laden</button>
+    <button id="closeSettingsBtn" class="btn-primary">Fertig</button>
+  </div>
+</dialog>
 
-<div class="wake-status" id="wakeStatus">● Screen Lock aktiv</div>
+<dialog id="editModal">
+  <h2 id="editModalTitle">Neuer Timer</h2>
+  <form id="editForm">
+    <div class="form-group">
+      <label for="editName">Name</label>
+      <input id="editName" name="name" required>
+    </div>
+    <div class="form-group">
+      <label for="editUnit">Einheit</label>
+      <select id="editUnit" name="unit">
+        <option value="hours">Stunden</option>
+        <option value="days">Tage</option>
+        <option value="minutes">Minuten</option>
+      </select>
+    </div>
+    <div class="form-group checkbox">
+      <input id="editShowMinutes" name="show_minutes" type="checkbox">
+      <label for="editShowMinutes">Kleinere Einheit anzeigen</label>
+    </div>
+    <div class="form-group">
+      <label for="editYellow">Gelb nach (in der Einheit)</label>
+      <input id="editYellow" name="yellow_after" type="number" min="0" required>
+    </div>
+    <div class="form-group">
+      <label for="editRed">Rot nach (in der Einheit)</label>
+      <input id="editRed" name="red_after" type="number" min="0" required>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="cancelEditBtn">Abbrechen</button>
+      <button type="submit" class="btn-primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
 (function() {
-  const NUM_TIMERS = 3;
-  let wakeLock = null;
+  var DEFAULT_YAML_URL = 'timers.yaml';
+  var STORAGE_CONFIG_KEY = 'redzone_config';
+  var STORAGE_PREFIX = 'redzone_start_';
+  var wakeLock = null;
+  var timers = [];
+  var editingIndex = -1;
+
+  // ─── Minimal YAML Parser ───
+  function parseYAML(text) {
+    var raw = text.split('\n');
+    var lines = [];
+    for (var i = 0; i < raw.length; i++) {
+      var l = raw[i];
+      var ci = l.indexOf(' #');
+      var clean = ci >= 0 ? l.substring(0, ci) : l;
+      var t = clean.trim();
+      if (t === '') continue;
+      lines.push({ indent: clean.search(/\S|$/), text: t });
+    }
+
+    var pos = 0;
+    function peek() { return pos < lines.length ? lines[pos] : null; }
+
+    function scalar(s) {
+      s = s.trim();
+      if (s.length >= 2 && ((s[0] === '"' && s[s.length-1] === '"') || (s[0] === "'" && s[s.length-1] === "'")))
+        return s.slice(1, -1);
+      var lo = s.toLowerCase();
+      if (lo === 'true') return true;
+      if (lo === 'false') return false;
+      if (lo === 'null' || lo === '~') return null;
+      if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+      return s;
+    }
+
+    function mapping(indent) {
+      var obj = {};
+      while (pos < lines.length) {
+        var line = peek();
+        if (line.indent < indent) break;
+        if (line.indent > indent) { pos++; continue; }
+        var colon = line.text.indexOf(':');
+        if (colon < 0) { pos++; continue; }
+        var key = line.text.substring(0, colon).trim();
+        var rest = line.text.substring(colon + 1).trim();
+        pos++;
+        if (rest === '') {
+          var next = peek();
+          if (next && next.indent > line.indent) {
+            if (next.text.startsWith('- ')) {
+              obj[key] = sequence(next.indent);
+            } else {
+              obj[key] = mapping(next.indent);
+            }
+          } else {
+            obj[key] = null;
+          }
+        } else {
+          obj[key] = scalar(rest);
+        }
+      }
+      return obj;
+    }
+
+    function sequence(indent) {
+      var arr = [];
+      while (pos < lines.length) {
+        var line = peek();
+        if (line.indent < indent) break;
+        if (!line.text.startsWith('- ')) { pos++; continue; }
+        var rest = line.text.substring(2).trim();
+        var itemIndent = line.indent;
+        pos++;
+
+        if (rest === '') {
+          var next = peek();
+          if (next && next.indent > itemIndent + 2) {
+            if (next.text.startsWith('- ')) {
+              arr.push(sequence(next.indent));
+            } else {
+              arr.push(mapping(next.indent));
+            }
+          } else {
+            arr.push(null);
+          }
+        } else if (rest.indexOf(':') >= 0) {
+          var obj = {};
+          var co = rest.indexOf(':');
+          var k = rest.substring(0, co).trim();
+          var v = rest.substring(co + 1).trim();
+          obj[k] = v === '' ? null : scalar(v);
+          var sub = itemIndent + 2;
+          while (pos < lines.length) {
+            var nx = peek();
+            if (nx.indent < sub) break;
+            if (nx.indent > sub) { pos++; continue; }
+            if (nx.text.indexOf(':') < 0) { pos++; continue; }
+            var co2 = nx.text.indexOf(':');
+            var k2 = nx.text.substring(0, co2).trim();
+            var v2 = nx.text.substring(co2 + 1).trim();
+            obj[k2] = v2 === '' ? null : scalar(v2);
+            pos++;
+          }
+          arr.push(obj);
+        } else {
+          arr.push(scalar(rest));
+        }
+      }
+      return arr;
+    }
+
+    return lines.length ? mapping(0) : {};
+  }
+
+  // ─── Timer Config ───
+  function defaultConfig() {
+    return [
+      { name: 'Letzte Schicht', unit: 'hours', show_minutes: true, yellow_after: 8, red_after: 12 },
+      { name: 'Im Projekt', unit: 'days', show_minutes: true, yellow_after: 30, red_after: 90 },
+      { name: 'Kaffeepause', unit: 'minutes', show_minutes: false, yellow_after: 20, red_after: 45 }
+    ];
+  }
 
   function getStartTime(index) {
-    const key = 'redzone_start_' + index;
-    let stored = localStorage.getItem(key);
+    var stored = localStorage.getItem(STORAGE_PREFIX + index);
     if (!stored) {
       stored = Date.now();
-      localStorage.setItem(key, stored);
+      localStorage.setItem(STORAGE_PREFIX + index, stored);
     }
     return parseInt(stored, 10);
   }
 
-  function formatDuration(ms) {
-    const totalSeconds = Math.floor(ms / 1000);
-    const days = Math.floor(totalSeconds / 86400);
-    const hours = Math.floor((totalSeconds % 86400) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const d = String(days).padStart(2, '0');
-    const h = String(hours).padStart(2, '0');
-    const m = String(minutes).padStart(2, '0');
-    return d + ':' + h + ':' + m;
+  function resetTimer(index) {
+    localStorage.setItem(STORAGE_PREFIX + index, Date.now());
   }
 
-  function update() {
-    for (let i = 0; i < NUM_TIMERS; i++) {
-      const start = getStartTime(i);
-      const diff = Date.now() - start;
-      const el = document.getElementById('timer' + i);
-      if (el) el.textContent = formatDuration(diff);
-    }
-  }
-
-  async function requestWakeLock() {
+  function loadConfig() {
     try {
-      if ('wakeLock' in navigator) {
-        wakeLock = await navigator.wakeLock.request('screen');
-        const statusEl = document.getElementById('wakeStatus');
-        if (statusEl) statusEl.textContent = '● Screen Lock aktiv';
-        wakeLock.addEventListener('release', function() {
-          const el = document.getElementById('wakeStatus');
-          if (el) el.textContent = '○ Screen Lock inaktiv';
-        });
-      }
-    } catch (err) {
-      const el = document.getElementById('wakeStatus');
-      if (el) el.textContent = '○ Wake Lock nicht verfügbar';
+      var s = localStorage.getItem(STORAGE_CONFIG_KEY);
+      if (s) return JSON.parse(s);
+    } catch(e) {}
+    return null;
+  }
+
+  function saveConfig(cfg) {
+    localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(cfg));
+  }
+
+  function loadDefaultsFromYAML() {
+    return fetch(DEFAULT_YAML_URL)
+      .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
+      .then(function(text) {
+        var p = parseYAML(text);
+        if (p && p.timers && Array.isArray(p.timers) && p.timers.length > 0) return p.timers;
+        return defaultConfig();
+      })
+      .catch(function() { return defaultConfig(); });
+  }
+
+  function initConfig() {
+    var c = loadConfig();
+    if (c) { timers = c; renderAll(); return Promise.resolve(); }
+    return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); });
+  }
+
+  // ─── Display ───
+  function fmt(ms, unit, showSub) {
+    if (unit === 'days') {
+      var d = Math.floor(ms / 86400000);
+      var h = Math.floor((ms % 86400000) / 3600000);
+      return { main: d + 'd', sub: showSub ? String(h).padStart(2,'0') + 'h' : '' };
     }
+    if (unit === 'hours') {
+      var h = Math.floor(ms / 3600000);
+      var m = Math.floor((ms % 3600000) / 60000);
+      return { main: h + 'h', sub: showSub ? String(m).padStart(2,'0') + 'm' : '' };
+    }
+    if (unit === 'minutes') {
+      var m = Math.floor(ms / 60000);
+      var s = Math.floor((ms % 60000) / 1000);
+      return { main: m + 'm', sub: showSub ? String(s).padStart(2,'0') + 's' : '' };
+    }
+    return { main: '', sub: '' };
+  }
+
+  function unitLabel(u) { return { days:'Tage', hours:'Stunden', minutes:'Minuten' }[u] || ''; }
+
+  function getColor(elapsed, t) {
+    var ym = t.yellow_after * unitMs(t.unit);
+    var rm = t.red_after * unitMs(t.unit);
+    if (elapsed < ym) return '#33ff33';
+    if (elapsed < rm) return '#ffcc00';
+    return '#ff3333';
+  }
+
+  function unitMs(u) { return { days:86400000, hours:3600000, minutes:60000 }[u] || 1; }
+
+  // ─── Render ───
+  function renderAll() {
+    var c = document.getElementById('timers');
+    if (!c) return;
+    if (!timers.length) {
+      c.innerHTML = '<div class="empty-state">Keine Timer<br>⚙ Timer hinzufügen</div>';
+      return;
+    }
+    var h = '';
+    for (var i = 0; i < timers.length; i++) h += card(i, timers[i]);
+    c.innerHTML = h;
+    var btns = c.querySelectorAll('.timer-reset');
+    for (var j = 0; j < btns.length; j++) {
+      (function(idx) {
+        btns[idx].addEventListener('click', function() {
+          resetTimer(parseInt(this.getAttribute('data-idx'), 10));
+          tick();
+        });
+      })(j);
+    }
+    tick();
+  }
+
+  function card(i, t) {
+    return '<div class="timer-card" id="c'+i+'">'
+      + '<div class="timer-name" style="color:#33ff33" id="n'+i+'">' + esc(t.name) + '</div>'
+      + '<div class="timer-value" style="color:#33ff33" id="v'+i+'">0d</div>'
+      + '<div class="timer-sub" style="color:#33ff33" id="s'+i+'">' + unitLabel(t.unit) + '</div>'
+      + '<button class="timer-reset" style="color:#33ff33" data-idx="'+i+'">Reset</button>'
+      + '</div>';
+  }
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function tick() {
+    for (var i = 0; i < timers.length; i++) {
+      var t = timers[i];
+      var e = Date.now() - getStartTime(i);
+      var c = getColor(e, t);
+      var f = fmt(e, t.unit, t.show_minutes);
+      var el = document.getElementById('n'+i);
+      if (el) el.style.color = c;
+      var el2 = document.getElementById('v'+i);
+      if (el2) { el2.textContent = f.main; el2.style.color = c; }
+      var el3 = document.getElementById('s'+i);
+      if (el3) { el3.textContent = f.sub || unitLabel(t.unit); el3.style.color = c; }
+      var card = document.getElementById('c'+i);
+      if (card) { var rb = card.querySelector('.timer-reset'); if (rb) rb.style.color = c; }
+    }
+  }
+
+  // ─── Wake Lock ───
+  function reqWake() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function(l) {
+      wakeLock = l;
+      var e = document.getElementById('wakeStatus');
+      if (e) e.textContent = '● Screen Lock';
+      l.addEventListener('release', function() {
+        var el = document.getElementById('wakeStatus');
+        if (el) el.textContent = '○ Screen Lock';
+      });
+    }).catch(function() {
+      var el = document.getElementById('wakeStatus');
+      if (el) el.textContent = '○ Wake Lock n/a';
+    });
   }
 
   document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
-      requestWakeLock();
-    }
+    if (document.visibilityState === 'visible') reqWake();
   });
 
-  document.addEventListener('DOMContentLoaded', function() {
-    requestWakeLock();
-    update();
-    setInterval(update, 1000);
-
-    document.querySelectorAll('.timer-reset').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'), 10);
-        const key = 'redzone_start_' + index;
-        localStorage.setItem(key, Date.now());
-        update();
-      });
-    });
-  });
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
+  // ─── Settings ───
+  function openSettings() {
+    renderCfgList();
+    document.getElementById('settingsModal').showModal();
   }
+
+  function renderCfgList() {
+    var c = document.getElementById('timerConfigList');
+    if (!timers.length) { c.innerHTML = '<div class="empty-state">Keine Timer</div>'; return; }
+    var h = '';
+    for (var i = 0; i < timers.length; i++) {
+      var t = timers[i];
+      h += '<div class="timer-config-item">'
+        + '<div class="info"><div class="name">' + esc(t.name) + '</div>'
+        + '<div class="meta">' + unitLabel(t.unit)
+        + (t.show_minutes ? ' · mit Untereinheit' : '')
+        + ' · Gelb >' + t.yellow_after + ' · Rot >' + t.red_after + '</div></div>'
+        + '<button class="remove-btn" data-idx="'+i+'">✕</button></div>';
+    }
+    c.innerHTML = h;
+    var rms = c.querySelectorAll('.remove-btn');
+    for (var j = 0; j < rms.length; j++) {
+      (function(idx) {
+        rms[idx].addEventListener('click', function() {
+          var i = parseInt(this.getAttribute('data-idx'), 10);
+          timers.splice(i, 1);
+          saveConfig(timers);
+          renderCfgList();
+          renderAll();
+        });
+      })(j);
+    }
+  }
+
+  function openEdit(idx) {
+    editingIndex = idx;
+    var title = document.getElementById('editModalTitle');
+    var form = document.getElementById('editForm');
+    form.reset();
+    if (idx >= 0 && idx < timers.length) {
+      title.textContent = 'Timer bearbeiten';
+      var t = timers[idx];
+      document.getElementById('editName').value = t.name;
+      document.getElementById('editUnit').value = t.unit;
+      document.getElementById('editShowMinutes').checked = t.show_minutes;
+      document.getElementById('editYellow').value = t.yellow_after;
+      document.getElementById('editRed').value = t.red_after;
+    } else {
+      title.textContent = 'Neuer Timer';
+      document.getElementById('editUnit').value = 'hours';
+      document.getElementById('editShowMinutes').checked = true;
+    }
+    document.getElementById('settingsModal').close();
+    document.getElementById('editModal').showModal();
+  }
+
+  function saveEdit(fd) {
+    var t = {
+      name: fd.get('name'),
+      unit: fd.get('unit'),
+      show_minutes: fd.get('show_minutes') === 'on',
+      yellow_after: parseInt(fd.get('yellow_after'), 10),
+      red_after: parseInt(fd.get('red_after'), 10)
+    };
+    if (editingIndex >= 0 && editingIndex < timers.length) {
+      timers[editingIndex] = t;
+    } else {
+      timers.push(t);
+    }
+    saveConfig(timers);
+    document.getElementById('editModal').close();
+    renderAll();
+    openSettings();
+  }
+
+  // ─── Bootstrap ───
+  document.addEventListener('DOMContentLoaded', function() {
+    initConfig().then(function() { setInterval(tick, 1000); reqWake(); });
+
+    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+    document.getElementById('closeSettingsBtn').addEventListener('click', function() {
+      document.getElementById('settingsModal').close();
+    });
+    document.getElementById('addTimerBtn').addEventListener('click', function() { openEdit(-1); });
+    document.getElementById('cancelEditBtn').addEventListener('click', function() {
+      document.getElementById('editModal').close();
+      openSettings();
+    });
+    document.getElementById('resetDefaultsBtn').addEventListener('click', function() {
+      loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderCfgList(); renderAll(); });
+    });
+    document.getElementById('editForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      saveEdit(new FormData(this));
+    });
+
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  });
 })();
 </script>
 </body>
