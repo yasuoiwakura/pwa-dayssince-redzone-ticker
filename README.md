@@ -1,56 +1,60 @@
 # Red Zone Reminder
 
-Serverlose PWA zum Tracken der Zeit seit einem Ereignis – mit farblichen Zonen (grün → gelb → rot) je nach verstrichener Zeit.
+Serverless PWA to track time elapsed since an event – with color zones (green → yellow → red) based on elapsed time.
 
 ## Features
 
-- **Countup-Timer** – zählt Tage, Stunden oder Minuten seit dem letzten Reset
-- **Farbzonen** – individuell pro Timer konfigurierbar: Grün (ok) → Gelb (Achtung) → Rot (kritisch)
-- **Screen Wake Lock** – Bildschirm bleibt eingeschaltet (für Dashboards, Werkstatt, Bad etc.)
-- **Installierbar** – als PWA mit `display: standalone` für Vollbild-Modus
-- **Offline-fähig** – Service Worker mit Cache-First-Strategie
-- **Konfiguration via YAML** – Timer-Standards in `timers.yaml`, überschreibbar über das WebUI
-- **Kein Backend** – läuft komplett clientseitig, Speicherung in `localStorage`
+- **Count-up timers** – counts days, hours, or minutes since last reset
+- **Color zones** – per-timer thresholds: green (ok) → yellow (warning) → red (critical)
+- **Screen Wake Lock** – keeps the display on (dashboards, workshop, bathroom, etc.)
+- **Installable** – PWA with `display: standalone` for fullscreen mode
+- **Offline-ready** – service worker with cache-first strategy
+- **YAML config** – default timers in `timers.yaml`, adjustable via WebUI
+- **No backend** – fully client-side, data stored in `localStorage`
 
-## Schnellstart
+## Live
+
+[https://yasuoiwakura.github.io/pwa-dayssince-redzone-ticker/](https://yasuoiwakura.github.io/pwa-dayssince-redzone-ticker/)
+
+## Quick start
 
 ```bash
 python -m http.server 8080
 # → http://localhost:8080
 ```
 
-Oder einfach auf GitHub Pages / Netlify / jeden Static-Hoster deployen.
+Or deploy to GitHub Pages / Netlify / any static host.
 
-## Projektstruktur
+## Project structure
 
 ```
 ├── index.html      – App (HTML + CSS + JS inline)
-├── manifest.json   – PWA-Manifest (installierbar)
-├── sw.js           – Service Worker (Cache-First)
-├── timers.yaml     – Standard-Timer-Konfiguration
+├── manifest.json   – PWA manifest (installable)
+├── sw.js           – Service worker (cache-first)
+├── timers.yaml     – Default timer configuration
 └── README.md
 ```
 
-## Konfiguration
+## Configuration
 
-Die Standard-Timer werden aus `timers.yaml` geladen. Einmal geladen, werden sie in `localStorage` gemanagt. Über das Zahnrad-UI (⚙) können Timer hinzugefügt, bearbeitet und entfernt werden.
+Default timers are loaded from `timers.yaml`. Once loaded, they are managed in `localStorage`. Use the gear icon (⚙) to add, edit, or remove timers.
 
 ```yaml
 timers:
-  - name: Beispiel
+  - name: Example
     unit: hours           # hours | days | minutes
-    show_minutes: true    # kleinere Einheit anzeigen?
-    yellow_after: 8       # Gelb ab (in der Einheit)
-    red_after: 12         # Rot ab (in der Einheit)
+    show_minutes: true    # show sub-unit?
+    yellow_after: 8       # yellow after (in timer unit)
+    red_after: 12         # red after (in timer unit)
 ```
 
-Rechenausdrücke wie `24*3` werden automatisch ausgewertet.
+Math expressions like `24*3` are evaluated automatically.
 
-## Technik
+## Tech stack
 
-- **Keine Abhängigkeiten** – reines Vanilla JS
-- **YAML-Parser** – minimalistisch, inline, keine Library nötig
-- **localStorage** – persistiert Timer-Konfiguration und Startzeiten
-- **Service Worker** – cached `index.html`, `manifest.json` und `timers.yaml`
+- **No dependencies** – plain vanilla JS
+- **YAML parser** – minimal, inline, no library required
+- **localStorage** – persists timer config and start times
+- **Service Worker** – caches `index.html`, `manifest.json`, `timers.yaml`
 - **Screen Wake Lock API** – `navigator.wakeLock.request('screen')`
-- **Dark Theme** – `#121212` Hintergrund, Monospace-Schrift mit `tabular-nums`
+- **Dark theme** – `#121212` background, monospace with `tabular-nums`
