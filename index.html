@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Red Zone Ticker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚨</text></svg>">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: #121212;
+    color: #ff3333;
+    font-family: 'Courier New', Courier, monospace;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: 16px;
+    user-select: none;
+    -webkit-user-select: none;
+    gap: 24px;
+  }
+  h1 {
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    color: #ff5555;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    opacity: 0.8;
+    text-align: center;
+  }
+  .timer-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 500px;
+  }
+  .timer-label {
+    font-size: clamp(0.8rem, 3vw, 1rem);
+    color: #ff8888;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .timer-display {
+    font-size: clamp(2.5rem, 12vw, 5rem);
+    font-weight: bold;
+    line-height: 1.1;
+    text-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
+  }
+  .timer-reset {
+    background: none;
+    border: 1px solid #ff3333;
+    color: #ff3333;
+    font-family: inherit;
+    font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 6px 18px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+  }
+  .timer-reset:hover, .timer-reset:active {
+    background: #ff3333;
+    color: #121212;
+  }
+  .wake-status {
+    position: fixed;
+    bottom: 12px;
+    font-size: 0.65rem;
+    opacity: 0.35;
+    color: #ff8888;
+  }
+  @media (max-width: 400px) {
+    body { gap: 16px; padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Red Zone Ticker</h1>
+
+<div class="timer-container">
+  <div class="timer-label">Timer 1</div>
+  <div class="timer-display" id="timer0">00:00:00</div>
+  <button class="timer-reset" data-index="0">Reset</button>
+</div>
+
+<div class="timer-container">
+  <div class="timer-label">Timer 2</div>
+  <div class="timer-display" id="timer1">00:00:00</div>
+  <button class="timer-reset" data-index="1">Reset</button>
+</div>
+
+<div class="timer-container">
+  <div class="timer-label">Timer 3</div>
+  <div class="timer-display" id="timer2">00:00:00</div>
+  <button class="timer-reset" data-index="2">Reset</button>
+</div>
+
+<div class="wake-status" id="wakeStatus">● Screen Lock aktiv</div>
+
+<script>
+(function() {
+  const NUM_TIMERS = 3;
+  let wakeLock = null;
+
+  function getStartTime(index) {
+    const key = 'redzone_start_' + index;
+    let stored = localStorage.getItem(key);
+    if (!stored) {
+      stored = Date.now();
+      localStorage.setItem(key, stored);
+    }
+    return parseInt(stored, 10);
+  }
+
+  function formatDuration(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const d = String(days).padStart(2, '0');
+    const h = String(hours).padStart(2, '0');
+    const m = String(minutes).padStart(2, '0');
+    return d + ':' + h + ':' + m;
+  }
+
+  function update() {
+    for (let i = 0; i < NUM_TIMERS; i++) {
+      const start = getStartTime(i);
+      const diff = Date.now() - start;
+      const el = document.getElementById('timer' + i);
+      if (el) el.textContent = formatDuration(diff);
+    }
+  }
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        const statusEl = document.getElementById('wakeStatus');
+        if (statusEl) statusEl.textContent = '● Screen Lock aktiv';
+        wakeLock.addEventListener('release', function() {
+          const el = document.getElementById('wakeStatus');
+          if (el) el.textContent = '○ Screen Lock inaktiv';
+        });
+      }
+    } catch (err) {
+      const el = document.getElementById('wakeStatus');
+      if (el) el.textContent = '○ Wake Lock nicht verfügbar';
+    }
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+      requestWakeLock();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    requestWakeLock();
+    update();
+    setInterval(update, 1000);
+
+    document.querySelectorAll('.timer-reset').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'), 10);
+        const key = 'redzone_start_' + index;
+        localStorage.setItem(key, Date.now());
+        update();
+      });
+    });
+  });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+})();
+</script>
+</body>
+</html>
