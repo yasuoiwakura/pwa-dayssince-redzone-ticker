@@ -41,6 +41,7 @@ Default timers are loaded from `timers.yaml`. Once loaded, they are managed in `
 
 ```yaml
 wake_lock: true           # screen wake lock on/off
+status_bar: normal        # normal | blend | hide (status bar visibility)
 timers:
   - name: Example
     unit: hours           # hours | days | minutes

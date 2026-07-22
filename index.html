@@ -6,6 +6,8 @@
 <title>Red Zone Ticker</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚨</text></svg>">
+<meta name="theme-color" id="themeColor" content="#ff3333">
+<meta name="apple-mobile-web-app-status-bar-style" id="iOSStatusBar" content="default">
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
@@ -310,6 +312,14 @@
     <input id="wakeLockCheck" type="checkbox">
     <label for="wakeLockCheck">Screen Lock (Bildschirm an)</label>
   </div>
+  <div class="form-group">
+    <label for="statusBarMode">Statusleiste</label>
+    <select id="statusBarMode">
+      <option value="normal">Normal (sichtbar)</option>
+      <option value="blend">Unauffällig (Farbe anpassen)</option>
+      <option value="hide">Vollbild (ausblenden)</option>
+    </select>
+  </div>
   <div class="modal-actions">
     <button id="addTimerBtn">+ Neu</button>
     <button id="resetDefaultsBtn">Standard laden</button>
@@ -534,6 +544,9 @@
           if (p.wake_lock === false || p.wake_lock === 'false') {
             localStorage.setItem('redzone_wake_lock', 'false');
           }
+          if (p.status_bar === 'blend' || p.status_bar === 'hide') {
+            localStorage.setItem('redzone_status_bar', p.status_bar);
+          }
           return p.timers;
         }
         return defaultConfig();
@@ -544,8 +557,8 @@
   function initConfig() {
     initWakeLock();
     var c = loadConfig();
-    if (c) { c.forEach(normalizeTimer); timers = c; renderAll(); return Promise.resolve(); }
-    return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); });
+    if (c) { c.forEach(normalizeTimer); timers = c; renderAll(); initStatusBar(); return Promise.resolve(); }
+    return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); initStatusBar(); });
   }
 
   // ─── Display ───
@@ -682,8 +695,49 @@
   }
 
   document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') reqWake();
+    if (document.visibilityState === 'visible') {
+      reqWake();
+      applyStatusBar();
+    }
   });
+
+  // ─── Status Bar ───
+  function applyStatusBar() {
+    var mode = localStorage.getItem('redzone_status_bar') || 'normal';
+    var themeColor = document.getElementById('themeColor');
+    var iOSBar = document.getElementById('iOSStatusBar');
+    if (!themeColor || !iOSBar) return;
+
+    if (mode === 'blend') {
+      themeColor.content = '#121212';
+      iOSBar.content = 'black-translucent';
+    } else if (mode === 'hide') {
+      themeColor.content = '#121212';
+      iOSBar.content = 'black-translucent';
+      try {
+        var el = document.documentElement;
+        if (el.requestFullscreen && !document.fullscreenElement) {
+          el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen && !document.webkitFullscreenElement) {
+          el.webkitRequestFullscreen();
+        }
+      } catch(e) {}
+    } else {
+      themeColor.content = '#ff3333';
+      iOSBar.content = 'default';
+      try {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+      } catch(e) {}
+    }
+  }
+
+  function initStatusBar() {
+    if (localStorage.getItem('redzone_status_bar') === null) {
+      localStorage.setItem('redzone_status_bar', 'normal');
+    }
+    applyStatusBar();
+  }
 
   // ─── Settings ───
   function openSettings() {
@@ -691,6 +745,8 @@
     updateInstallBtn();
     var wakeCheck = document.getElementById('wakeLockCheck');
     if (wakeCheck) wakeCheck.checked = wakeEnabled();
+    var barSel = document.getElementById('statusBarMode');
+    if (barSel) barSel.value = localStorage.getItem('redzone_status_bar') || 'normal';
     document.getElementById('settingsModal').showModal();
   }
 
@@ -796,6 +852,14 @@
       wakeCheck.addEventListener('change', function() {
         localStorage.setItem('redzone_wake_lock', this.checked ? 'true' : 'false');
         reqWake();
+      });
+    }
+
+    var barSel = document.getElementById('statusBarMode');
+    if (barSel) {
+      barSel.addEventListener('change', function() {
+        localStorage.setItem('redzone_status_bar', this.value);
+        applyStatusBar();
       });
     }
 
