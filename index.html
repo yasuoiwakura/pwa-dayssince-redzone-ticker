@@ -286,7 +286,7 @@
 <header>
   <h1>RED ZONE REMINDER</h1>
   <div class="header-actions">
-    <button id="installBtn" class="install-btn">⬇ Install</button>
+    <button id="installBtn" class="install-btn">Install as app</button>
     <button id="settingsBtn" title="Timer verwalten">⚙</button>
   </div>
 </header>
@@ -628,8 +628,8 @@
     var sel = document.getElementById('installMode');
     if (sel) sel.value = mode;
     if (mode === 'hide') { btn.style.display = 'none'; return; }
-    if (mode === 'show') { btn.style.display = ''; return; }
-    btn.style.display = deferredPrompt ? '' : 'none';
+    if (mode === 'show') { btn.style.display = 'flex'; return; }
+    btn.style.display = deferredPrompt ? 'flex' : 'none';
   }
 
   function handleInstall() {
@@ -738,15 +738,17 @@
     openSettings();
   }
 
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      updateInstallBtn();
+    }
+  });
+
   // ─── Bootstrap ───
   document.addEventListener('DOMContentLoaded', function() {
-    initConfig().then(function() { setInterval(tick, 1000); reqWake(); });
-
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault();
-      deferredPrompt = e;
-      updateInstallBtn();
-    });
+    initConfig().then(function() { setInterval(tick, 1000); reqWake(); updateInstallBtn(); });
 
     window.addEventListener('appinstalled', function() {
       deferredPrompt = null;
