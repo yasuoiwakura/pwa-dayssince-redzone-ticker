@@ -38,18 +38,19 @@
     text-transform: uppercase;
     letter-spacing: 0.15em;
   }
-  #settingsBtn {
+  .header-btn {
     background: none;
     border: 1px solid #444;
     color: #aaa;
-    font-size: 1.3rem;
+    font-size: 1.1rem;
     cursor: pointer;
     border-radius: 6px;
-    padding: 6px 10px;
+    padding: 6px 8px;
     transition: border-color 0.2s, color 0.2s;
     line-height: 1;
   }
-  #settingsBtn:hover { border-color: #ff3333; color: #fff; }
+  .header-btn:hover { border-color: #ff3333; color: #fff; }
+  #settingsBtn { font-size: 1.3rem; padding: 6px 10px; }
 
   .header-actions {
     display: flex;
@@ -434,7 +435,9 @@
   <h1>RED ZONE REMINDER</h1>
   <div class="header-actions">
     <button id="installBtn" class="install-btn">Install as app</button>
-    <button id="settingsBtn" title="Timer verwalten">⚙</button>
+    <button id="permHeaderBtn" class="header-btn" title="Zugriffsrechte">🔒</button>
+    <button id="sysTestHeaderBtn" class="header-btn" title="Systemprüfung">☐</button>
+    <button id="settingsBtn" class="header-btn" title="Timer verwalten">⚙</button>
   </div>
 </header>
 
@@ -1801,6 +1804,8 @@
       });
     }
 
+    document.getElementById('permHeaderBtn').addEventListener('click', function() { openPermModal(); });
+    document.getElementById('sysTestHeaderBtn').addEventListener('click', function() { runSysTest(); });
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
     document.getElementById('closeSettingsBtn').addEventListener('click', function() {
       document.getElementById('settingsModal').close();
