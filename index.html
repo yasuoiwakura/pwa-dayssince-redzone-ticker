@@ -308,6 +308,58 @@
     letter-spacing: 0.1em;
   }
 
+  .geo-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.72rem; color: #aaa; margin-top: 2px;
+  }
+  .geo-active { color: #33ff33; }
+  .geo-inactive { color: #ffcc00; }
+  .geo-unknown { color: #666; }
+
+  .loc-label {
+    font-size: 0.75rem; color: #888; margin-top: 1px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .loc-dist { color: #ffcc00; }
+
+  .alarm-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; width: 100%;
+    padding: 8px 10px; margin-top: 4px;
+    background: #ff333322; border: 1px solid #ff3333;
+    border-radius: 6px; animation: alarm-blink 1s infinite;
+  }
+  .alarm-banner .alarm-text { font-size: 0.8rem; color: #ff3333; text-transform: uppercase; letter-spacing: 0.05em; }
+  .alarm-banner .alarm-btn {
+    background: #22aa22; color: #fff; border: none;
+    border-radius: 4px; padding: 4px 10px;
+    font-family: inherit; font-size: 0.72rem; cursor: pointer;
+  }
+  .alarm-banner .alarm-btn:hover { background: #2ccc2c; }
+  @keyframes alarm-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  .timer-card-alarm { border: 2px solid #ff3333; border-radius: 10px; padding: 2px; margin-bottom: 4px; }
+
+  .loc-config-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+  .loc-config-item {
+    display: flex; align-items: center; gap: 8px;
+    background: #1a1a1a; border-radius: 6px; padding: 8px 10px;
+  }
+  .loc-config-item .info { flex: 1; min-width: 0; }
+  .loc-config-item .info .name { font-size: 0.9rem; text-transform: uppercase; }
+  .loc-config-item .info .coords { font-size: 0.75rem; color: #aaa; }
+  .loc-config-item .remove-btn {
+    background: none; border: none; color: #ff3333;
+    font-size: 1.2rem; cursor: pointer; padding: 4px 8px;
+    flex-shrink: 0;
+  }
+  .loc-config-item .remove-btn:hover { background: #ff333322; border-radius: 4px; }
+
+  .section-title {
+    font-size: 0.78rem; letter-spacing: 0.1em; color: #777; text-transform: uppercase;
+    margin: 16px 0 8px 0; padding-top: 12px; border-top: 1px solid #2a2a2a;
+  }
+
   @media (max-width: 400px) {
     body { padding: 12px 10px; gap: 8px; }
     dialog { padding: 16px; }
@@ -360,6 +412,7 @@
 
 <div class="wake-status" id="wakeStatus">● Screen Lock</div>
 <button id="wakeCTA">click to keep screen active</button>
+<div class="wake-status geo-inactive" id="geoStatus" style="cursor:pointer">📍 GPS: Inaktiv</div>
 
 <dialog id="settingsModal">
   <h2>Timer verwalten</h2>
@@ -384,10 +437,13 @@
       <option value="hide">Vollbild (ausblenden)</option>
     </select>
   </div>
+  <div class="section-title">Orte (f&uuml;r Geofence)</div>
+  <div id="locConfigList" class="loc-config-list"></div>
   <div class="modal-actions">
-    <button id="addTimerBtn">+ Neu</button>
+    <button id="addLocBtn">+ Ort</button>
+    <button id="addTimerBtn">+ Timer</button>
     <button id="resetDefaultsBtn">Standard laden</button>
-    <button id="sysTestBtn">Systemprüfung</button>
+    <button id="sysTestBtn">Systempr&uuml;fung</button>
     <button id="refreshBtn" class="btn-danger">App aktualisieren</button>
     <button id="closeSettingsBtn" class="btn-primary">Fertig</button>
   </div>
@@ -401,27 +457,78 @@
       <input id="editName" name="name" required>
     </div>
     <div class="form-group">
-      <label for="editUnit">Einheit</label>
-      <select id="editUnit" name="unit">
-        <option value="hours">Stunden</option>
-        <option value="days">Tage</option>
-        <option value="minutes">Minuten</option>
+      <label for="editType">Typ</label>
+      <select id="editType" name="type">
+        <option value="normal">Normal (Count-up)</option>
+        <option value="checkin">Check-in (nur Ort)</option>
       </select>
     </div>
-    <div class="form-group checkbox">
-      <input id="editShowMinutes" name="show_minutes" type="checkbox">
-      <label for="editShowMinutes">Kleinere Einheit anzeigen</label>
+    <div id="editTimerFields">
+      <div class="form-group">
+        <label for="editUnit">Einheit</label>
+        <select id="editUnit" name="unit">
+          <option value="hours">Stunden</option>
+          <option value="days">Tage</option>
+          <option value="minutes">Minuten</option>
+        </select>
+      </div>
+      <div class="form-group checkbox">
+        <input id="editShowMinutes" name="show_minutes" type="checkbox">
+        <label for="editShowMinutes">Kleinere Einheit anzeigen</label>
+      </div>
+      <div class="form-group">
+        <label for="editYellow">Gelb nach (in der Einheit)</label>
+        <input id="editYellow" name="yellow_after" type="number" min="0" required>
+      </div>
+      <div class="form-group">
+        <label for="editRed">Rot nach (in der Einheit)</label>
+        <input id="editRed" name="red_after" type="number" min="0" required>
+      </div>
     </div>
-    <div class="form-group">
-      <label for="editYellow">Gelb nach (in der Einheit)</label>
-      <input id="editYellow" name="yellow_after" type="number" min="0" required>
-    </div>
-    <div class="form-group">
-      <label for="editRed">Rot nach (in der Einheit)</label>
-      <input id="editRed" name="red_after" type="number" min="0" required>
+    <div id="editCheckinFields" style="display:none">
+      <div class="form-group">
+        <label for="editLocation">Ort</label>
+        <select id="editLocation" name="location">
+          <option value="">Keiner</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="editRepeat">Wiederholung (Minuten)</label>
+        <input id="editRepeat" name="repeat_minutes" type="number" min="0" value="1">
+      </div>
+      <div class="form-group checkbox">
+        <input id="editNotify" name="notify" type="checkbox" checked>
+        <label for="editNotify">Benachrichtigung anzeigen</label>
+      </div>
     </div>
     <div class="modal-actions">
       <button type="button" id="cancelEditBtn">Abbrechen</button>
+      <button type="submit" class="btn-primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="locEditModal">
+  <h2 id="locEditModalTitle">Ort hinzuf&uuml;gen</h2>
+  <form id="locEditForm">
+    <div class="form-group">
+      <label for="locEditName">Name</label>
+      <input id="locEditName" name="name" required>
+    </div>
+    <div class="form-group">
+      <label for="locEditLat">Breitengrad</label>
+      <input id="locEditLat" name="lat" type="number" step="any" required>
+    </div>
+    <div class="form-group">
+      <label for="locEditLng">L&auml;ngengrad</label>
+      <input id="locEditLng" name="lng" type="number" step="any" required>
+    </div>
+    <div class="form-group">
+      <label for="locEditRadius">Radius (Meter)</label>
+      <input id="locEditRadius" name="radius" type="number" min="1" value="100" required>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="cancelLocEditBtn">Abbrechen</button>
       <button type="submit" class="btn-primary">Speichern</button>
     </div>
   </form>
@@ -443,8 +550,12 @@
   var STORAGE_PREFIX = 'redzone_start_';
   var wakeLock = null;
   var timers = [];
+  var locations = [];
   var editingIndex = -1;
   var deferredPrompt = null;
+  var geoState = { watchId: null, acked: {}, active: false, repeatTimers: {} };
+  var LOCATIONS_KEY = 'redzone_locations';
+  var GEO_ACK_KEY = 'redzone_geo_ack';
 
   // ─── Minimal YAML Parser ───
   function parseYAML(text) {
@@ -609,6 +720,32 @@
     }
   }
 
+  function loadLocations() {
+    try { return JSON.parse(localStorage.getItem(LOCATIONS_KEY)) || []; } catch(e) { return []; }
+  }
+
+  function saveLocations(locs) {
+    localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locs));
+  }
+
+  function loadGeoAcks() {
+    try { return JSON.parse(localStorage.getItem(GEO_ACK_KEY)) || {}; } catch(e) { return {}; }
+  }
+
+  function saveGeoAcks() {
+    localStorage.setItem(GEO_ACK_KEY, JSON.stringify(geoState.acked));
+  }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
   function loadDefaultsFromYAML() {
     return fetch(DEFAULT_YAML_URL)
       .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
@@ -622,6 +759,10 @@
           if (p.status_bar === 'blend' || p.status_bar === 'hide') {
             localStorage.setItem('redzone_status_bar', p.status_bar);
           }
+          if (p.locations && Array.isArray(p.locations) && p.locations.length > 0) {
+            locations = p.locations;
+            saveLocations(locations);
+          }
           return p.timers;
         }
         return defaultConfig();
@@ -631,8 +772,14 @@
 
   function initConfig() {
     initWakeLock();
+    locations = loadLocations();
+    geoState.acked = loadGeoAcks();
     var c = loadConfig();
-    if (c) { c.forEach(normalizeTimer); timers = c; renderAll(); initStatusBar(); return Promise.resolve(); }
+    if (c) {
+      if (Array.isArray(c)) { c.forEach(normalizeTimer); timers = c; }
+      else { timers = c.timers || []; timers.forEach(normalizeTimer); }
+      renderAll(); initStatusBar(); return Promise.resolve();
+    }
     return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); initStatusBar(); });
   }
 
@@ -693,6 +840,19 @@
   }
 
   function card(i, t) {
+    if (t.type === 'checkin') {
+      return '<div class="timer-card" id="c'+i+'">'
+        + '<div class="timer-left">'
+        + '<div class="timer-row">'
+        + '<div class="timer-name" style="color:#ffcc00" id="n'+i+'">' + esc(t.name) + '</div>'
+        + '<div class="timer-value" style="color:#ffcc00" id="v'+i+'">\uD83D\uDCCD</div>'
+        + '</div>'
+        + '<div class="timer-sub" style="color:#888" id="s'+i+'">' + esc(t.location || 'Kein Ort') + '</div>'
+        + '<div class="geo-status geo-unknown" id="geo'+i+'"></div>'
+        + '</div>'
+        + '<button class="timer-done" data-idx="'+i+'" title="Zur\u00fccksetzen">\u2713</button>'
+        + '</div>';
+    }
     return '<div class="timer-card" id="c'+i+'">'
       + '<div class="timer-left">'
       + '<div class="timer-row">'
@@ -700,6 +860,8 @@
       + '<div class="timer-value" style="color:#33ff33" id="v'+i+'">0d</div>'
       + '</div>'
       + '<div class="timer-sub" style="color:#33ff33" id="s'+i+'">' + unitLabel(t.unit) + '</div>'
+      + (t.location ? '<div class="loc-label" id="loc'+i+'">\uD83D\uDCCD ' + esc(t.location) + ' <span class="loc-dist" id="dist'+i+'"></span></div>' : '')
+      + (t.location ? '<div class="geo-status geo-unknown" id="geo'+i+'"></div>' : '')
       + '</div>'
       + '<button class="timer-done" data-idx="'+i+'">&#10003;</button>'
       + '</div>';
@@ -710,6 +872,16 @@
   function tick() {
     for (var i = 0; i < timers.length; i++) {
       var t = timers[i];
+      if (t.type === 'checkin') {
+        var nameEl = document.getElementById('n'+i);
+        if (nameEl) nameEl.style.color = geoState.acked[i] ? '#33ff33' : '#ffcc00';
+        var valEl = document.getElementById('v'+i);
+        if (valEl) {
+          valEl.textContent = geoState.acked[i] ? '\u2714' : '\uD83D\uDCCD';
+          valEl.style.color = geoState.acked[i] ? '#33ff33' : '#ffcc00';
+        }
+        continue;
+      }
       var e = Date.now() - getStartTime(i);
       var c = getColor(e, t);
       var f = fmt(e, t.unit, t.show_minutes);
@@ -719,7 +891,62 @@
       if (el2) { el2.textContent = f.main; el2.style.color = c; }
       var el3 = document.getElementById('s'+i);
       if (el3) { el3.textContent = f.sub || unitLabel(t.unit); el3.style.color = c; }
+      // Location-Distanz aktualisieren
+      var distEl = document.getElementById('dist'+i);
+      if (distEl && t._geoDist !== undefined && geoState.active) {
+        distEl.textContent = Math.round(t._geoDist) + 'm';
+      } else if (distEl) {
+        distEl.textContent = '';
+      }
     }
+  }
+
+  var locEditingIndex = -1;
+
+  function openLocEdit(idx) {
+    locEditingIndex = idx;
+    var title = document.getElementById('locEditModalTitle');
+    var form = document.getElementById('locEditForm');
+    form.reset();
+    if (idx >= 0 && idx < locations.length) {
+      title.textContent = 'Ort bearbeiten';
+      var l = locations[idx];
+      document.getElementById('locEditName').value = l.name;
+      document.getElementById('locEditLat').value = l.lat;
+      document.getElementById('locEditLng').value = l.lng;
+      document.getElementById('locEditRadius').value = l.radius;
+    } else {
+      title.textContent = 'Ort hinzuf\u00fcgen';
+      document.getElementById('locEditRadius').value = 100;
+    }
+    document.getElementById('settingsModal').close();
+    document.getElementById('locEditModal').showModal();
+  }
+
+  function saveLocEdit(fd) {
+    var l = {
+      name: fd.get('name'),
+      lat: parseFloat(fd.get('lat')),
+      lng: parseFloat(fd.get('lng')),
+      radius: parseInt(fd.get('radius'), 10) || 100
+    };
+    if (locEditingIndex >= 0 && locEditingIndex < locations.length) {
+      // Name geändert → Timer-Referenzen aktualisieren
+      var oldName = locations[locEditingIndex].name;
+      if (oldName !== l.name) {
+        for (var k = 0; k < timers.length; k++) {
+          if (timers[k].location === oldName) timers[k].location = l.name;
+        }
+        saveConfig(timers);
+      }
+      locations[locEditingIndex] = l;
+    } else {
+      locations.push(l);
+    }
+    saveLocations(locations);
+    document.getElementById('locEditModal').close();
+    renderAll();
+    openSettings();
   }
 
   // ─── Install Button ───
@@ -881,9 +1108,175 @@
     applyStatusBar();
   }
 
+  // ─── Geofence / GPS ───
+  function getLocByName(name) {
+    for (var i = 0; i < locations.length; i++) {
+      if (locations[i].name === name) return locations[i];
+    }
+    return null;
+  }
+
+  function geoDistToLoc(lat, lon, loc) {
+    if (!loc) return -1;
+    return haversine(lat, lon, loc.lat, loc.lng);
+  }
+
+  function startGeoWatch() {
+    if (geoState.watchId !== null) return;
+    if (!('geolocation' in navigator)) { updateGeoUI(); return; }
+    geoState.watchId = navigator.geolocation.watchPosition(function(pos) {
+      var lat = pos.coords.latitude;
+      var lon = pos.coords.longitude;
+      geoState.active = true;
+      updateGeoUI();
+      // Prüfe alle Timer mit Location auf Zonen-Eintritt
+      for (var i = 0; i < timers.length; i++) {
+        var t = timers[i];
+        if (!t.location) continue;
+        var loc = getLocByName(t.location);
+        if (!loc) continue;
+        var dist = geoDistToLoc(lat, lon, loc);
+        var inZone = dist >= 0 && dist <= loc.radius;
+        var prevInZone = geoState.inZone && geoState.inZone[i];
+        if (!geoState.inZone) geoState.inZone = {};
+        if (inZone && !prevInZone) {
+          // Zone betreten
+          geoState.inZone[i] = true;
+          if (!geoState.acked[i]) triggerAlarm(i, t, dist);
+        } else if (!inZone && prevInZone) {
+          // Zone verlassen
+          geoState.inZone[i] = false;
+          clearAlarm(i);
+          delete geoState.acked[i];
+          saveGeoAcks();
+        }
+        // Update Distanz-Anzeige
+        t._geoDist = dist;
+      }
+    }, function(err) {
+      geoState.active = false;
+      updateGeoUI();
+    }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
+    // Wake Lock anfordern für GPS
+    if (wakeEnabled()) reqWake();
+    updateGeoUI();
+  }
+
+  function stopGeoWatch() {
+    if (geoState.watchId !== null) {
+      navigator.geolocation.clearWatch(geoState.watchId);
+      geoState.watchId = null;
+    }
+    geoState.active = false;
+    // Repeat-Timer stoppen
+    for (var k in geoState.repeatTimers) {
+      clearInterval(geoState.repeatTimers[k]);
+      delete geoState.repeatTimers[k];
+    }
+    // Distanzen zurücksetzen
+    for (var i = 0; i < timers.length; i++) {
+      delete timers[i]._geoDist;
+    }
+    updateGeoUI();
+  }
+
+  function toggleGeoWatch() {
+    if (geoState.watchId !== null) { stopGeoWatch(); }
+    else { startGeoWatch(); }
+  }
+
+  function triggerAlarm(idx, t, dist) {
+    var card = document.getElementById('c' + idx);
+    if (!card) return;
+    // Alarm-Banner anzeigen
+    var existing = card.querySelector('.alarm-banner');
+    if (existing) return;
+    var banner = document.createElement('div');
+    banner.className = 'alarm-banner';
+    banner.innerHTML = '<span class="alarm-text">\u26A0\uFE0F ' + esc(t.name) + ' auslegen! (' + Math.round(dist) + 'm)</span>'
+      + '<button class="alarm-btn" data-idx="' + idx + '">\uD83D\uDD15 Erledigt</button>';
+    card.querySelector('.timer-left').appendChild(banner);
+    banner.querySelector('.alarm-btn').addEventListener('click', function() {
+      ackAlarm(idx);
+    });
+    card.classList.add('timer-card-alarm');
+    // Repeat starten
+    if (t.repeat_minutes && t.repeat_minutes > 0) {
+      if (geoState.repeatTimers[idx]) clearInterval(geoState.repeatTimers[idx]);
+      geoState.repeatTimers[idx] = setInterval(function() {
+        if (!geoState.acked[idx]) {
+          var loc2 = getLocByName(t.location);
+          var d2 = loc2 ? Math.round(haversine(0, 0, loc2.lat, loc2.lng)) : 0;
+          showNotification(t, d2);
+        }
+      }, t.repeat_minutes * 60000);
+    }
+    // Sofortige Notification
+    showNotification(t, Math.round(dist));
+  }
+
+  function ackAlarm(idx) {
+    geoState.acked[idx] = Date.now();
+    saveGeoAcks();
+    clearAlarm(idx);
+  }
+
+  function clearAlarm(idx) {
+    var card = document.getElementById('c' + idx);
+    if (card) {
+      var banner = card.querySelector('.alarm-banner');
+      if (banner) banner.remove();
+      card.classList.remove('timer-card-alarm');
+    }
+    if (geoState.repeatTimers[idx]) {
+      clearInterval(geoState.repeatTimers[idx]);
+      delete geoState.repeatTimers[idx];
+    }
+  }
+
+  function showNotification(t, dist) {
+    if (!t.notify) return;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(t.name + ' auslegen!', {
+          body: 'Entfernung: ' + dist + 'm \u2013 bitte erledigen!'
+        });
+      } catch(e) {}
+    }
+  }
+
+  function updateGeoUI() {
+    for (var i = 0; i < timers.length; i++) {
+      var t = timers[i];
+      if (!t.location) continue;
+      var geoEl = document.getElementById('geo' + i);
+      if (!geoEl) continue;
+      var active = geoState.active;
+      var acked = !!geoState.acked[i];
+      var inZone = geoState.inZone && geoState.inZone[i];
+      if (active) {
+        geoEl.innerHTML = '<span class="geo-active">\u25CF GPS aktiv</span>'
+          + (t._geoDist !== undefined ? ' \u00B7 ' + Math.round(t._geoDist) + 'm' : '')
+          + (acked ? ' \u00B7 <span style="color:#33ff33">\u2714 Erledigt</span>' : '');
+      } else {
+        geoEl.innerHTML = '<span class="geo-inactive">\u26A0 GPS inaktiv \u2013 App offen lassen</span>'
+          + ' <button class="alarm-btn geo-start-btn" style="font-size:0.7rem;padding:2px 8px">GPS start</button>';
+      var startBtn = geoEl.querySelector('.geo-start-btn');
+      if (startBtn) startBtn.addEventListener('click', startGeoWatch);
+      }
+    }
+    var statusEl = document.getElementById('geoStatus');
+    if (statusEl) {
+      statusEl.textContent = geoState.active ? '\uD83D\uDCCD GPS: Aktiv' : '\uD83D\uDCCD GPS: Inaktiv';
+      statusEl.className = 'wake-status ' + (geoState.active ? 'geo-active' : 'geo-inactive');
+    }
+  }
+
   // ─── Settings ───
   function openSettings() {
     renderCfgList();
+    renderLocList();
+    populateLocDropdown();
     updateInstallBtn();
     var wakeCheck = document.getElementById('wakeLockCheck');
     if (wakeCheck) wakeCheck.checked = wakeEnabled();
@@ -898,12 +1291,16 @@
     var h = '';
     for (var i = 0; i < timers.length; i++) {
       var t = timers[i];
+      var meta = (t.type === 'checkin' ? 'Check-in' : unitLabel(t.unit));
+      if (t.type !== 'checkin') {
+        meta += (t.show_minutes ? ' \u00B7 mit Untereinheit' : '')
+          + ' \u00B7 Gelb >' + t.yellow_after + ' \u00B7 Rot >' + t.red_after;
+      }
+      if (t.location) meta += ' \u00B7 ' + esc(t.location);
       h += '<div class="timer-config-item">'
         + '<div class="info"><div class="name">' + esc(t.name) + '</div>'
-        + '<div class="meta">' + unitLabel(t.unit)
-        + (t.show_minutes ? ' · mit Untereinheit' : '')
-        + ' · Gelb >' + t.yellow_after + ' · Rot >' + t.red_after + '</div></div>'
-        + '<button class="remove-btn" data-idx="'+i+'">✕</button></div>';
+        + '<div class="meta">' + meta + '</div></div>'
+        + '<button class="remove-btn" data-idx="'+i+'">\u2715</button></div>';
     }
     c.innerHTML = h;
     var rms = c.querySelectorAll('.remove-btn');
@@ -920,36 +1317,104 @@
     }
   }
 
+  function renderLocList() {
+    var c = document.getElementById('locConfigList');
+    if (!c) return;
+    if (!locations.length) { c.innerHTML = '<div class="empty-state">Keine Orte</div>'; return; }
+    var h = '';
+    for (var i = 0; i < locations.length; i++) {
+      var l = locations[i];
+      h += '<div class="loc-config-item">'
+        + '<div class="info"><div class="name">' + esc(l.name) + '</div>'
+        + '<div class="coords">' + l.lat + ', ' + l.lng + ' \u00B7 ' + l.radius + 'm Radius</div></div>'
+        + '<button class="remove-btn" data-idx="'+i+'">\u2715</button></div>';
+    }
+    c.innerHTML = h;
+    var rms = c.querySelectorAll('.remove-btn');
+    for (var j = 0; j < rms.length; j++) {
+      (function(idx) {
+        rms[idx].addEventListener('click', function() {
+          var i = parseInt(this.getAttribute('data-idx'), 10);
+          var name = locations[i].name;
+          locations.splice(i, 1);
+          saveLocations(locations);
+          // Entferne location-Verweise aus Timern
+          for (var k = 0; k < timers.length; k++) {
+            if (timers[k].location === name) delete timers[k].location;
+          }
+          saveConfig(timers);
+          renderLocList();
+          renderCfgList();
+          renderAll();
+        });
+      })(j);
+    }
+  }
+
+  function populateLocDropdown() {
+    var sel = document.getElementById('editLocation');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Keiner</option>';
+    for (var i = 0; i < locations.length; i++) {
+      sel.innerHTML += '<option value="' + esc(locations[i].name) + '">' + esc(locations[i].name) + '</option>';
+    }
+  }
+
   function openEdit(idx) {
     editingIndex = idx;
     var title = document.getElementById('editModalTitle');
     var form = document.getElementById('editForm');
     form.reset();
+    populateLocDropdown();
     if (idx >= 0 && idx < timers.length) {
       title.textContent = 'Timer bearbeiten';
       var t = timers[idx];
       document.getElementById('editName').value = t.name;
-      document.getElementById('editUnit').value = t.unit;
-      document.getElementById('editShowMinutes').checked = t.show_minutes;
-      document.getElementById('editYellow').value = t.yellow_after;
-      document.getElementById('editRed').value = t.red_after;
+      document.getElementById('editType').value = t.type === 'checkin' ? 'checkin' : 'normal';
+      document.getElementById('editUnit').value = t.unit || 'hours';
+      document.getElementById('editShowMinutes').checked = !!t.show_minutes;
+      document.getElementById('editYellow').value = t.yellow_after || 0;
+      document.getElementById('editRed').value = t.red_after || 0;
+      var locSel = document.getElementById('editLocation');
+      if (locSel && t.location) locSel.value = t.location;
+      var rep = document.getElementById('editRepeat');
+      if (rep) rep.value = t.repeat_minutes || 1;
+      var not = document.getElementById('editNotify');
+      if (not) not.checked = t.notify !== false;
     } else {
       title.textContent = 'Neuer Timer';
+      document.getElementById('editType').value = 'normal';
       document.getElementById('editUnit').value = 'hours';
       document.getElementById('editShowMinutes').checked = true;
     }
+    toggleEditFields();
     document.getElementById('settingsModal').close();
     document.getElementById('editModal').showModal();
   }
 
+  function toggleEditFields() {
+    var type = document.getElementById('editType').value;
+    document.getElementById('editTimerFields').style.display = type === 'checkin' ? 'none' : '';
+    document.getElementById('editCheckinFields').style.display = type === 'checkin' ? '' : 'none';
+  }
+
   function saveEdit(fd) {
-    var t = {
-      name: fd.get('name'),
-      unit: fd.get('unit'),
-      show_minutes: fd.get('show_minutes') === 'on',
-      yellow_after: parseInt(fd.get('yellow_after'), 10),
-      red_after: parseInt(fd.get('red_after'), 10)
-    };
+    var type = fd.get('type') || 'normal';
+    var t = { name: fd.get('name'), type: type };
+    if (type === 'checkin') {
+      t.location = fd.get('location') || '';
+      t.repeat_minutes = parseInt(fd.get('repeat_minutes'), 10) || 1;
+      t.notify = fd.get('notify') === 'on';
+      t.unit = 'hours';
+      t.show_minutes = false;
+      t.yellow_after = 0;
+      t.red_after = 0;
+    } else {
+      t.unit = fd.get('unit');
+      t.show_minutes = fd.get('show_minutes') === 'on';
+      t.yellow_after = parseInt(fd.get('yellow_after'), 10) || 0;
+      t.red_after = parseInt(fd.get('red_after'), 10) || 0;
+    }
     if (editingIndex >= 0 && editingIndex < timers.length) {
       timers[editingIndex] = t;
     } else {
@@ -1180,12 +1645,22 @@
       document.getElementById('settingsModal').close();
     });
     document.getElementById('addTimerBtn').addEventListener('click', function() { openEdit(-1); });
+    document.getElementById('addLocBtn').addEventListener('click', function() { openLocEdit(-1); });
     document.getElementById('cancelEditBtn').addEventListener('click', function() {
       document.getElementById('editModal').close();
       openSettings();
     });
+    document.getElementById('cancelLocEditBtn').addEventListener('click', function() {
+      document.getElementById('locEditModal').close();
+      openSettings();
+    });
+    document.getElementById('editType').addEventListener('change', toggleEditFields);
     document.getElementById('resetDefaultsBtn').addEventListener('click', function() {
-      loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderCfgList(); renderAll(); });
+      loadDefaultsFromYAML().then(function(c) {
+        timers = c; saveConfig(c);
+        locations = loadLocations();
+        renderCfgList(); renderLocList(); renderAll();
+      });
     });
     document.getElementById('sysTestBtn').addEventListener('click', function() {
       document.getElementById('settingsModal').close();
@@ -1213,9 +1688,15 @@
         window.location.reload();
       }
     });
+    var geoStatusEl = document.getElementById('geoStatus');
+    if (geoStatusEl) geoStatusEl.addEventListener('click', toggleGeoWatch);
     document.getElementById('editForm').addEventListener('submit', function(e) {
       e.preventDefault();
       saveEdit(new FormData(this));
+    });
+    document.getElementById('locEditForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      saveLocEdit(new FormData(this));
     });
 
     if ('serviceWorker' in navigator) {

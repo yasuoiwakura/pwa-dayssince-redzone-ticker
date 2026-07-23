@@ -2,7 +2,19 @@
 # Gelb-/Rot-Schwellen in der gleichen Einheit wie der Timer
 wake_lock: true
 status_bar: normal
+
+locations:
+  - name: Shoppingcenter
+    lat: 52.419667618511795
+    lng: 9.596403056686585
+    radius: 100
+
 timers:
+  - name: Parkscheibe
+    type: checkin
+    location: Shoppingcenter
+    repeat_minutes: 1
+    notify: true
   - name: Zahnseide
     unit: hours
     show_minutes: true
