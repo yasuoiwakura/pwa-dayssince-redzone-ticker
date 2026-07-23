@@ -1668,7 +1668,6 @@
       +   '<span class="perm-status ' + geoCls + '">' + geoLabel + '</span>'
       +   '<button class="perm-btn perm-btn-primary" id="requestGeoPerm">Anfordern</button>'
       +   (geoStatus === 'granted' ? '<button class="perm-btn" id="testGeoPerm">Testen</button>' : '')
-      +   '<button class="perm-btn" id="openGeoSettings">OS-Einstellungen</button>'
       + '</div>'
       + '<div class="perm-test-result" id="' + geoTestId + '"></div>'
       + '</div>';
@@ -1685,7 +1684,6 @@
       +   '<span class="perm-status ' + pushCls + '">' + pushLabel + '</span>'
       +   '<button class="perm-btn perm-btn-primary" id="requestPushPerm">Anfordern</button>'
       +   (pushStatus === 'granted' ? '<button class="perm-btn" id="testPushPerm">Testen</button>' : '')
-      +   '<button class="perm-btn" id="openPushSettings">OS-Einstellungen</button>'
       + '</div>'
       + '<div class="perm-test-result" id="pushTestResult"></div>'
       + '</div>';
@@ -1747,21 +1745,6 @@
       });
     }
 
-    // OS-Einstellungen-Buttons
-    document.getElementById('openGeoSettings').addEventListener('click', openSystemSettings);
-    document.getElementById('openPushSettings').addEventListener('click', openSystemSettings);
-  }
-
-  function openSystemSettings() {
-    // Android: App-Info-Seite \u00f6ffnen
-    var intent = 'intent://settings/#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;end';
-    try {
-      window.location.href = intent;
-    } catch(e) {}
-    // Fallback: Hinweis anzeigen
-    setTimeout(function() {
-      alert('Bitte \u00f6ffne die Systemeinstellungen \u2192 Apps \u2192 Red Zone Reminder \u2192 Berechtigungen');
-    }, 100);
   }
 
   window.addEventListener('beforeinstallprompt', function(e) {
