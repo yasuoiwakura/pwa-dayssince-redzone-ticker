@@ -567,16 +567,19 @@
       <input id="locEditName" name="name" required>
     </div>
     <div class="form-group">
-      <label for="locEditLat">Breitengrad</label>
-      <input id="locEditLat" name="lat" type="number" step="any" required>
+      <label for="locEditLat">Breitengrad (leer lassen f&uuml;r sp&auml;ter)</label>
+      <input id="locEditLat" name="lat" type="number" step="any">
     </div>
     <div class="form-group">
-      <label for="locEditLng">L&auml;ngengrad</label>
-      <input id="locEditLng" name="lng" type="number" step="any" required>
+      <label for="locEditLng">L&auml;ngengrad (leer lassen f&uuml;r sp&auml;ter)</label>
+      <input id="locEditLng" name="lng" type="number" step="any">
     </div>
     <div class="form-group">
       <label for="locEditRadius">Radius (Meter)</label>
-      <input id="locEditRadius" name="radius" type="number" min="1" value="100" required>
+      <input id="locEditRadius" name="radius" type="number" min="1" value="100">
+    </div>
+    <div style="margin-bottom:12px">
+      <button type="button" id="locEditHereBtn" class="header-btn" style="width:100%;padding:10px;font-size:0.9rem">📍 Hier (aktuelle GPS-Position &uuml;bernehmen)</button>
     </div>
     <div class="modal-actions">
       <button type="button" id="cancelLocEditBtn">Abbrechen</button>
@@ -827,7 +830,10 @@
 
   function hasGeoDependentTimer() {
     for (var gi = 0; gi < timers.length; gi++) {
-      if (timers[gi].location) return true;
+      if (timers[gi].location) {
+        var locObj = getLocByName(timers[gi].location);
+        if (locObj && locObj.lat != null && locObj.lng != null) return true;
+      }
     }
     return false;
   }
@@ -937,12 +943,14 @@
     for (var i = 0; i < timers.length; i++) {
       var t = timers[i];
       if (t.type === 'checkin') {
+        var locObj2 = t.location ? getLocByName(t.location) : null;
+        var hasCoords2 = locObj2 && locObj2.lat != null && locObj2.lng != null;
         var nameEl = document.getElementById('n'+i);
         if (nameEl) nameEl.style.color = geoState.acked[i] ? '#33ff33' : '#ffcc00';
         var valEl = document.getElementById('v'+i);
         if (valEl) {
-          valEl.textContent = geoState.acked[i] ? '\u2714' : '\uD83D\uDCCD';
-          valEl.style.color = geoState.acked[i] ? '#33ff33' : '#ffcc00';
+          valEl.textContent = !hasCoords2 && !geoState.acked[i] ? '\u2753' : (geoState.acked[i] ? '\u2714' : '\uD83D\uDCCD');
+          valEl.style.color = !hasCoords2 && !geoState.acked[i] ? '#888' : (geoState.acked[i] ? '#33ff33' : '#ffcc00');
         }
         continue;
       }
@@ -976,8 +984,8 @@
       title.textContent = 'Ort bearbeiten';
       var l = locations[idx];
       document.getElementById('locEditName').value = l.name;
-      document.getElementById('locEditLat').value = l.lat;
-      document.getElementById('locEditLng').value = l.lng;
+      document.getElementById('locEditLat').value = l.lat != null ? l.lat : '';
+      document.getElementById('locEditLng').value = l.lng != null ? l.lng : '';
       document.getElementById('locEditRadius').value = l.radius;
     } else {
       title.textContent = 'Ort hinzuf\u00fcgen';
@@ -988,10 +996,14 @@
   }
 
   function saveLocEdit(fd) {
+    var latRaw = fd.get('lat') || '';
+    var lngRaw = fd.get('lng') || '';
+    var lat = latRaw !== '' ? parseFloat(latRaw) : null;
+    var lng = lngRaw !== '' ? parseFloat(lngRaw) : null;
     var l = {
       name: fd.get('name'),
-      lat: parseFloat(fd.get('lat')),
-      lng: parseFloat(fd.get('lng')),
+      lat: lat,
+      lng: lng,
       radius: parseInt(fd.get('radius'), 10) || 100
     };
     if (locEditingIndex >= 0 && locEditingIndex < locations.length) {
@@ -1182,6 +1194,7 @@
 
   function geoDistToLoc(lat, lon, loc) {
     if (!loc) return -1;
+    if (loc.lat == null || loc.lng == null) return -1;
     return haversine(lat, lon, loc.lat, loc.lng);
   }
 
@@ -1382,6 +1395,12 @@
       if (!t.location) continue;
       var geoEl = document.getElementById('geo' + i);
       if (!geoEl) continue;
+      var locObj = getLocByName(t.location);
+      var hasCoords = locObj && locObj.lat != null && locObj.lng != null;
+      if (!hasCoords) {
+        geoEl.innerHTML = '<span style="color:#888">\u2753 Keine Koordinaten</span>';
+        continue;
+      }
       var active = geoState.active;
       var acked = !!geoState.acked[i];
       var inZone = geoState.inZone && geoState.inZone[i];
@@ -1455,15 +1474,17 @@
     var h = '';
     for (var i = 0; i < locations.length; i++) {
       var l = locations[i];
+      var hasCoords = l.lat != null && l.lng != null;
       var gpsInfo = '';
-      if (geoState.gpsLastPos && geoState.gpsLastFix) {
+      if (hasCoords && geoState.gpsLastPos && geoState.gpsLastFix) {
         var d = haversine(geoState.gpsLastPos.lat, geoState.gpsLastPos.lng, l.lat, l.lng);
         var age = Math.round((Date.now() - geoState.gpsLastFix) / 1000);
         gpsInfo = ' \u00B7 \uD83D\uDD0D ' + Math.round(d) + 'm \u00B7 \u23F1 ' + age + 's';
       }
+      var coordsTxt = hasCoords ? l.lat + ', ' + l.lng + ' \u00B7 ' + l.radius + 'm Radius' : '\u2753 Keine Koordinaten';
       h += '<div class="loc-config-item">'
         + '<div class="info"><div class="name">' + esc(l.name) + '</div>'
-        + '<div class="coords">' + l.lat + ', ' + l.lng + ' \u00B7 ' + l.radius + 'm Radius' + gpsInfo + '</div></div>'
+        + '<div class="coords">' + coordsTxt + gpsInfo + '</div></div>'
         + '<button class="remove-btn" data-idx="'+i+'">\u2715</button></div>';
     }
     c.innerHTML = h;
@@ -1960,6 +1981,20 @@
     document.getElementById('locEditForm').addEventListener('submit', function(e) {
       e.preventDefault();
       saveLocEdit(new FormData(this));
+    });
+    document.getElementById('locEditHereBtn').addEventListener('click', function() {
+      if (!('geolocation' in navigator)) return;
+      var btn = this;
+      btn.textContent = '\uD83D\uDCCD ...';
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        document.getElementById('locEditLat').value = pos.coords.latitude;
+        document.getElementById('locEditLng').value = pos.coords.longitude;
+        btn.textContent = '\u2705 \u00dcbernommen';
+        setTimeout(function() { btn.textContent = '\uD83D\uDCCD Hier (aktuelle GPS-Position \u00fcbernehmen)'; }, 2000);
+      }, function(err) {
+        btn.textContent = '\u274C Fehler: ' + err.message;
+        setTimeout(function() { btn.textContent = '\uD83D\uDCCD Hier (aktuelle GPS-Position \u00fcbernehmen)'; }, 3000);
+      }, { enableHighAccuracy: true, timeout: 8000 });
     });
 
     if ('serviceWorker' in navigator) {

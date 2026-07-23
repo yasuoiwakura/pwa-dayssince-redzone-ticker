@@ -5,6 +5,7 @@ status_bar: normal
 gps_interval: 60
 
 locations:
+  - name: Zuhause
   - name: Shoppingcenter
     lat: 52.419667618511795
     lng: 9.596403056686585
