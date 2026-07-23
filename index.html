@@ -349,8 +349,10 @@
   .timer-card-alarm { border: 2px solid #ff3333; border-radius: 10px; padding: 2px; margin-bottom: 4px; }
 
   .schedule-grid {
-    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
-    justify-content: center;
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  .timer-row > .schedule-grid {
+    flex: 1; justify-content: flex-end;
   }
   .schedule-slot {
     flex: 1; min-width: 70px; max-width: 120px;
@@ -1067,9 +1069,9 @@
         + '<div class="timer-left">'
         + '<div class="timer-row">'
         + '<div class="timer-name" style="color:#33ff33" id="n'+i+'">' + esc(t.name) + '</div>'
+        + '<div class="schedule-grid" id="sg'+i+'"></div>'
         + '</div>'
         + '<div class="timer-sub" style="color:#888">SCHEDULE</div>'
-        + '<div class="schedule-grid" id="sg'+i+'"></div>'
         + '</div>'
         + '</div>';
     }
