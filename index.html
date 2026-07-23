@@ -1353,7 +1353,10 @@
       geoState.repeatTimers[idx] = setInterval(function() {
         if (!geoState.acked[idx]) {
           var loc2 = getLocByName(t.location);
-          var d2 = loc2 ? Math.round(haversine(0, 0, loc2.lat, loc2.lng)) : 0;
+          var d2 = 0;
+          if (loc2 && geoState.gpsLastPos) {
+            d2 = Math.round(haversine(geoState.gpsLastPos.lat, geoState.gpsLastPos.lng, loc2.lat, loc2.lng));
+          }
           showNotification(t, d2);
         }
       }, t.repeat_minutes * 60000);
@@ -1384,7 +1387,8 @@
   function showNotification(t, dist) {
     if (!t.notify) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    sendTestNotification(t.name + ' auslegen!', 'Entfernung: ' + dist + 'm \u2013 bitte erledigen!');
+    var locName = t.location || 'unbekannter Ort';
+    sendTestNotification(t.name + ' @ ' + locName, Math.round(dist) + 'm');
   }
 
   function sendTestNotification(title, body) {
