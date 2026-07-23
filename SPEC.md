@@ -64,10 +64,67 @@
 | Geolocation (GPS) | ⏳ | ⏳ | ⏳ | ⏳ |
 | Push Notifications | ⏳ | ⏳ | ⏳ | ⏳ |
 
-## 7. Bekannte Einschränkungen
+## 7. Bugs & TODOs
+
+### 7.1 GPS: Kein User-Feedback bei fehlender Berechtigung
+
+- GPS ist standardmäßig nicht aktiv – es gibt aber **keine Info an den User**.
+- Die Systemprüfung zeigt Geolocation als "✅ Verfügbar" an, obwohl die **Runtime-Berechtigung fehlt**.
+- Der OS-Permission-Dialog erscheint erst beim **Klick auf das kleine 📍-Icon unten** – kein Hinweis darauf.
+- Auf Android kann man nur **"diesmal" oder "wenn App im Vordergrund"** wählen, nicht "immer".
+- **TODO:** Systemtest muss Runtime-Permission prüfen (nicht nur API-Existenz). User-freundlicher Permission-Hinweis in der UI.
+
+### 7.2 Geofence-Timer: Statusanzeige unvollständig
+
+Der Checkin-Timer muss folgende Zustände abbilden:
+
+| Zustand | Icon/Farbe | Beschreibung |
+|---|---|---|
+| Kein GPS verfügbar | 🔴 Rot | `navigator.geolocation` nicht vorhanden |
+| Keine Erlaubnis | 🔒🔴 Rot | Permission denied |
+| Außerhalb Geofence | ⚫ Grau | GPS aktiv, Distanz > Radius |
+| Im Geofence (unbestätigt) | 🟡 Gelb (blinkend) | Alarm aktiv |
+| Im Geofence + bestätigt | 🟢 Grün | `acked` gesetzt |
+| Nach Verlassen | ⚫ Grau | Zurückgesetzt |
+
+**TODO:** `updateGeoUI()` und `tick()` müssen diese Zustände abbilden.
+
+### 7.3 Wake Lock (Video-Fallback) defekt
+
+- Video-Workaround funktioniert **nicht im Browser (Edge/Windows)**.
+- Funktioniert **nicht auf iPhone 7** (iOS Safari).
+- **TODO:** Fallback-Mechanismus überprüfen oder alternative Strategie (kein Video) implementieren.
+
+### 7.4 Keine echte Push-Benachrichtigung
+
+- Auch wenn die UI den Geofence-Alarm anzeigt (roter Banner), gibt es **keine System-Notification**.
+- Der `new Notification()`-Aufruf wird durch `Notification.permission` blockiert (default = `default`).
+- **Keine Permission-Abfrage** für Notification wurde je durchgeführt.
+- **TODO:** Permission-Abfrage für Notification beim ersten Geofence-Alarm + Permissions-Menü.
+
+### 7.5 GPS-Position per "Hier" setzen
+
+- **FR:** Für lokale Tests soll man in den Settings die aktuelle GPS-Position per Knopfdruck übernehmen können (ohne Koordinaten manuell einzugeben).
+- Verhindert, dass private Standorte (z.B. Zuhause) in Git landen.
+- **TODO:** Button "Hier" in der Location-Edit-Maske – ruft `getCurrentPosition()` ab und befüllt Lat/Lng-Felder.
+
+### 7.6 Permissions-Menü fehlt
+
+- Es gibt keinen zentralen Ort, um Zugriffsrechte anzufordern: GPS, Push Notifications, ggf. Wake Lock.
+- **TODO:** Settings um "Berechtigungen"-Abschnitt erweitern, der fehlende Berechtigungen anzeigt und per Button anfordert.
+
+### 7.7 Sonstige TODOs
+
+- **"Standard laden" Cache-Busting:** ✅ Implementiert seit 2026-07-23 (`?t=Date.now()`).
+- **FR: Push erst bei Fahrzeug-Stillstand:** Sinnvolle Idee, aber Implementierung nicht geplant (würde Accelerometer + GPS-Geschwindigkeit erfordern, zu komplex für Phase 1).
+- **Service Worker:** `timers.yaml?t=...` wird nicht gecached – OK, da nur bei explizitem "Standard laden" verwendet.
+
+## 8. Bekannte Einschränkungen
 
 - **Wake Lock:** `navigator.wakeLock` existiert auf Safari nicht. Video-Fallback ist plattformabhängig und kann vom Browser unterdrückt werden.
 - **Fullscreen:** `requestFullscreen()` muss durch User Gesture (Klick) ausgelöst werden – automatisches Verstecken der Statusleiste beim App-Start nicht möglich.
 - **Geolocation im Hintergrund:** In einer PWA nicht standardisiert möglich – Geofence-Reminder erfordert offene App mit Wake Lock.
 - **Push Notifications:** Ohne Server-Infrastruktur keine Push-Zustellung bei geschlossener App.
 - **Systemprüfung:** Prüft nur API-Verfügbarkeit, nicht die tatsächliche Runtime-Funktion (z.B. `wakeLock in navigator` ist `true`, aber `request()` kann trotzdem fehlschlagen).
+- **GPS-Permission:** Auf Android kann nur "nur während der Nutzung" gewählt werden, nicht "immer" – schränkt Geofence-Funktionalität ein.
+- **GPS ohne HTTPS:** `navigator.geolocation` erfordert HTTPS – lokale Entwicklung über `http://localhost` ist eine Ausnahme.
