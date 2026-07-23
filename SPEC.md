@@ -198,3 +198,73 @@ reg.showNotification(title, {
 - **Systemprüfung:** Prüft nur API-Verfügbarkeit, nicht die tatsächliche Runtime-Funktion (z.B. `wakeLock in navigator` ist `true`, aber `request()` kann trotzdem fehlschlagen).
 - **GPS-Permission:** Auf Android kann nur "nur während der Nutzung" gewählt werden, nicht "immer" – schränkt Geofence-Funktionalität ein.
 - **GPS ohne HTTPS:** `navigator.geolocation` erfordert HTTPS – lokale Entwicklung über `http://localhost` ist eine Ausnahme.
+
+## 9. FR: Webhook-Integration (Event-Logging & Sync)
+
+### 9.1 Ziel
+
+Jede Useraktion, die einen Task erledigt (Reset, Ack, Schedule-Taken), ruft einen konfigurierbaren Webhook auf. Der Server quittiert mit den letzten bekannten Aktionen pro Timer – so baut sich eine geräteunabhängige Datenbasis für Auswertungen (z.B. Abweichungen Soll/Ist) auf.
+
+### 9.2 Payload (POST)
+
+```json
+{
+  "app": "redzone-reminder",
+  "instance": "<instance-id aus localStorage>",
+  "secret": "<hash aus localStorage>",
+  "action": "reset" | "ack" | "schedule_taken",
+  "timer": "<timer-name>",
+  "timestamp": "<ISO-8601>",
+  "details": {
+    "scheduled_time": "08:00",
+    "actual_time": "08:05"
+  }
+}
+```
+
+Bei `schedule_taken` zusätzlich `scheduled_time` (Soll) und `actual_time` (Ist) für Abweichungsanalyse.
+
+### 9.3 Server-Response
+
+Der Server sendet bei jeder Anfrage (auch bei leeren) die letzten bekannten Aktionen jedes Timers zurück – z.B. als Sync für andere Instanzen:
+
+```json
+{
+  "status": "ok",
+  "last_actions": {
+    "Parkscheibe": { "action": "ack", "timestamp": "..." },
+    "Pille": { "action": "schedule_taken", "timestamp": "...", "scheduled_time": "08:00" }
+  }
+}
+```
+
+### 9.4 Offline-Queue (optional, später)
+
+Wenn `fetch()` fehlschlägt, wird die Action in `localStorage` (`redzone_webhook_queue`) zwischengespeichert und beim nächsten erfolgreichen Webhook-Aufruf nachgesendet.
+
+### 9.5 Konfiguration
+
+**YAML (App-Ebene + Timer-Ebene):**
+
+```yaml
+webhook:
+  url: "https://homelab.local/webhook"
+  # secret wird NICHT in YAML gespeichert
+
+timers:
+  - name: Pille
+    webhook_url: "https://homelab.local/webhook/pille"  # override
+```
+
+**Secret** – liegt in `localStorage` (`redzone_webhook_secret` + `redzone_webhook_instance_id`), wird im Settings-Menü gesetzt. So bleibt es aus dem YAML (und damit aus Git/öffentlicher Instanz) raus.
+
+**Auflösung:** `t.webhook_url ?? config.webhook.url ?? null` → wenn `null`, kein Webhook für diesen Timer.
+
+**Settings-UI:** Textfeld für Webhook-URL (global) + Secret + Instance-ID, darunter Liste der Timer-spezifischen URLs.
+
+### 9.6 Offene Fragen
+
+- **Öffentliche Instanz:** YAML inkl. Webhook-URL wäre öffentlich einsehbar – daher muss URL entweder ebenfalls in localStorage (Settings-UI) oder über eine Umgebungsvariable gelöst werden.
+- **Datenschutz:** Aktionen + Zeitstempel sind ggf. personenbezogen – DSGVO-konforme Lösung nötig falls öffentlich betrieben.
+- **Backend:** Einfaches Python-Skript im HomeLab vs. InfluxDB für Zeitreihen-Auswertung. Webhook-Ansatz ist agnostisch und erlaubt beides.
+- **Secret-Hash:** Client-seitig gehashtes Secret (SHA-256) im Authorization-Header, Server vergleicht gegen konfigurierten Hash – kein Klartext-Secret über die Leitung.
