@@ -5,7 +5,7 @@ status_bar: normal
 gps_interval: 60
 
 locations:
-  - name: Zuhause
+  - name: Home
     radius: 50
   - name: Shoppingcenter
     lat: 52.419667618511795
@@ -13,6 +13,11 @@ locations:
     radius: 100
 
 timers:
+  - name: Hometest
+    type: checkin
+    location: Home
+    repeat_minutes: 1
+    notify: true
   - name: Parkscheibe
     type: checkin
     location: Shoppingcenter

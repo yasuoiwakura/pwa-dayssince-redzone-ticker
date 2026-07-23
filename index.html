@@ -352,7 +352,15 @@
   .loc-config-item {
     display: flex; align-items: center; gap: 8px;
     background: #1a1a1a; border-radius: 6px; padding: 8px 10px;
+    cursor: pointer;
   }
+  .loc-config-item:hover { background: rgba(255,255,255,0.04); }
+  .loc-here-btn {
+    background: none; border: 1px solid #33ff33; color: #33ff33;
+    font-size: 0.75rem; cursor: pointer; border-radius: 4px;
+    padding: 4px 8px; font-family: inherit; flex-shrink: 0;
+  }
+  .loc-here-btn:hover { background: #33ff3322; }
   .loc-config-item .info { flex: 1; min-width: 0; }
   .loc-config-item .info .name { font-size: 0.9rem; text-transform: uppercase; }
   .loc-config-item .info .coords { font-size: 0.75rem; color: #aaa; }
@@ -1482,21 +1490,32 @@
         gpsInfo = ' \u00B7 \uD83D\uDD0D ' + Math.round(d) + 'm \u00B7 \u23F1 ' + age + 's';
       }
       var coordsTxt = hasCoords ? l.lat + ', ' + l.lng + ' \u00B7 ' + l.radius + 'm Radius' : '\u2753 Keine Koordinaten';
-      h += '<div class="loc-config-item">'
+      h += '<div class="loc-config-item" data-idx="'+i+'">'
         + '<div class="info"><div class="name">' + esc(l.name) + '</div>'
         + '<div class="coords">' + coordsTxt + gpsInfo + '</div></div>'
+        + (hasCoords ? '' : '<button class="loc-here-btn" data-idx="'+i+'">\uD83D\uDCCD Hier</button>')
         + '<button class="remove-btn" data-idx="'+i+'">\u2715</button></div>';
     }
     c.innerHTML = h;
+    var items = c.querySelectorAll('.loc-config-item');
+    for (var j = 0; j < items.length; j++) {
+      (function(idx) {
+        items[idx].addEventListener('click', function(e) {
+          if (e.target.classList.contains('remove-btn') || e.target.classList.contains('loc-here-btn')) return;
+          var i = parseInt(this.getAttribute('data-idx'), 10);
+          openLocEdit(i);
+        });
+      })(j);
+    }
     var rms = c.querySelectorAll('.remove-btn');
     for (var j = 0; j < rms.length; j++) {
       (function(idx) {
-        rms[idx].addEventListener('click', function() {
+        rms[idx].addEventListener('click', function(e) {
+          e.stopPropagation();
           var i = parseInt(this.getAttribute('data-idx'), 10);
           var name = locations[i].name;
           locations.splice(i, 1);
           saveLocations(locations);
-          // Entferne location-Verweise aus Timern
           for (var k = 0; k < timers.length; k++) {
             if (timers[k].location === name) delete timers[k].location;
           }
@@ -1504,6 +1523,31 @@
           renderLocList();
           renderCfgList();
           renderAll();
+        });
+      })(j);
+    }
+    var hereBtns = c.querySelectorAll('.loc-here-btn');
+    for (var j = 0; j < hereBtns.length; j++) {
+      (function(idx) {
+        hereBtns[idx].addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (!('geolocation' in navigator)) return;
+          var i = parseInt(this.getAttribute('data-idx'), 10);
+          var btn = this;
+          btn.textContent = '\uD83D\uDCCD ...';
+          navigator.geolocation.getCurrentPosition(function(pos) {
+            locations[i].lat = pos.coords.latitude;
+            locations[i].lng = pos.coords.longitude;
+            if (locations[i].radius == null) locations[i].radius = 100;
+            saveLocations(locations);
+            renderLocList();
+            renderCfgList();
+            renderAll();
+            if (hasGeoDependentTimer() && !geoState.gpsRunning) startGpsPolling();
+          }, function(err) {
+            btn.textContent = '\u274C ' + err.message.substring(0, 20);
+            setTimeout(function() { btn.textContent = '\uD83D\uDCCD Hier'; }, 2000);
+          }, { enableHighAccuracy: true, timeout: 8000 });
         });
       })(j);
     }
