@@ -312,6 +312,29 @@
     body { padding: 12px 10px; gap: 8px; }
     dialog { padding: 16px; }
   }
+
+  #sysTestModal { max-width: 480px; }
+  #sysTestModal h2 { margin-bottom: 12px; }
+  .sys-test-list { display: flex; flex-direction: column; gap: 0; max-height: 60vh; overflow-y: auto; }
+  .sys-test-item {
+    display: flex; flex-direction: column; gap: 2px; padding: 10px 0;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .sys-test-item:last-child { border-bottom: none; }
+  .sys-test-header {
+    display: flex; align-items: center; gap: 8px; font-size: 0.95rem;
+  }
+  .sys-test-badges {
+    display: flex; gap: 16px; font-size: 0.78rem; color: #aaa;
+    margin-left: 28px; margin-top: 2px;
+  }
+  .badge-ok { color: #33ff33; }
+  .badge-warn { color: #ffcc00; }
+  .badge-fail { color: #ff3333; }
+  .badge-planned { color: #ffcc00; }
+  .sys-test-detail {
+    font-size: 0.73rem; color: #666; margin-left: 28px; margin-top: 2px;
+  }
 </style>
 </head>
 <body>
@@ -355,6 +378,7 @@
   <div class="modal-actions">
     <button id="addTimerBtn">+ Neu</button>
     <button id="resetDefaultsBtn">Standard laden</button>
+    <button id="sysTestBtn">Systemprüfung</button>
     <button id="refreshBtn" class="btn-danger">App aktualisieren</button>
     <button id="closeSettingsBtn" class="btn-primary">Fertig</button>
   </div>
@@ -392,6 +416,15 @@
       <button type="submit" class="btn-primary">Speichern</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="sysTestModal">
+  <h2>Systempr&uuml;fung</h2>
+  <div id="sysTestResults" class="sys-test-list"></div>
+  <div class="modal-actions">
+    <button id="rerunSysTest">Neu laden</button>
+    <button id="closeSysTestBtn" class="btn-primary">Schlie&szlig;en</button>
+  </div>
 </dialog>
 
 <script>
@@ -919,6 +952,185 @@
     openSettings();
   }
 
+  // ─── System Test ───
+  function runSysTest() {
+    var results = [];
+
+    // 1 Screen Wake Lock
+    var wakeSupported = 'wakeLock' in navigator;
+    var wakeActive = wakeLock !== null;
+    results.push({
+      name: 'Screen Wake Lock',
+      platform: wakeSupported ? 'ok' : 'fail',
+      pwa: wakeActive ? 'ok' : (wakeSupported ? 'planned' : 'fail'),
+      detail: wakeActive ? 'Wake Lock wird gehalten'
+        : wakeSupported ? 'Nicht aktiv — geplant f\u00fcr Geo-Features'
+        : 'Nicht verf\u00fcgbar auf diesem Browser'
+    });
+
+    // 2 Geolocation (GPS)
+    var geoSupported = 'geolocation' in navigator;
+    results.push({
+      name: 'Geolocation (GPS)',
+      platform: geoSupported ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: geoSupported ? 'Berechtigung: ' + (navigator.permissions
+        ? 'wird gepr\u00fcft' : 'nach Klick') : 'Nicht verf\u00fcgbar (HTTPS n\u00f6tig?)'
+    });
+
+    // 3 Push Notifications
+    var pushSupported = 'Notification' in window;
+    var pushPerm = pushSupported ? Notification.permission : 'n/a';
+    results.push({
+      name: 'Push Notifications',
+      platform: pushSupported ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: pushSupported ? 'Permission: ' + pushPerm : 'Nicht unterst\u00fctzt'
+    });
+
+    // 4 Service Worker
+    var swSupported = 'serviceWorker' in navigator;
+    var swActive = swSupported && navigator.serviceWorker.controller !== null;
+    results.push({
+      name: 'Service Worker',
+      platform: swSupported ? 'ok' : 'fail',
+      pwa: swActive ? 'ok' : (swSupported ? 'warn' : 'fail'),
+      detail: swActive ? 'Registriert (Cache v2)'
+        : swSupported ? 'Nicht registriert (Seite neu laden?)'
+        : 'Nicht verf\u00fcgbar'
+    });
+
+    // 5 Installierbar (A2HS)
+    var installable = deferredPrompt !== null;
+    var installed = window.matchMedia('(display-mode: standalone)').matches;
+    results.push({
+      name: 'Installierbar (A2HS)',
+      platform: installable ? 'ok' : 'warn',
+      pwa: installed ? 'ok' : 'warn',
+      detail: installed ? 'App ist installiert (Standalone)'
+        : installable ? 'Install-Prompt verf\u00fcgbar'
+        : 'Nicht installierbar auf dieser Plattform'
+    });
+
+    // 6 Accelerometer (Generic Sensor API)
+    results.push({
+      name: 'Accelerometer',
+      platform: 'Accelerometer' in window ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: 'Accelerometer' in window ? 'Nur Chromium-basiert' : 'Nicht unterst\u00fctzt (iOS/FF)'
+    });
+
+    // 7 DeviceMotion (iOS Fallback)
+    results.push({
+      name: 'DeviceMotion (iOS)',
+      platform: 'DeviceMotionEvent' in window ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: 'DeviceMotionEvent' in window ? 'iOS-Fallback verf\u00fcgbar' : 'Nicht unterst\u00fctzt'
+    });
+
+    // 8 Vibration
+    results.push({
+      name: 'Vibration',
+      platform: 'vibrate' in navigator ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: ''
+    });
+
+    // 9 Battery
+    var batterySupported = 'getBattery' in navigator;
+    results.push({
+      name: 'Battery',
+      platform: batterySupported ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: ''
+    });
+
+    // 10 Background Sync
+    var bgSync = 'SyncManager' in window;
+    results.push({
+      name: 'Background Sync',
+      platform: bgSync ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: bgSync ? 'Verf\u00fcgbar' : 'Nicht unterst\u00fctzt (iOS)'
+    });
+
+    // 11 Periodic Background Sync
+    results.push({
+      name: 'Periodic Background Sync',
+      platform: 'PeriodicSyncManager' in window ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: ''
+    });
+
+    // 12 Fullscreen
+    var fsSupported = document.fullscreenEnabled;
+    var fsActive = !!document.fullscreenElement;
+    results.push({
+      name: 'Fullscreen',
+      platform: fsSupported ? 'ok' : 'fail',
+      pwa: fsActive ? 'ok' : 'planned',
+      detail: fsActive ? 'Aktiv' : (fsSupported ? 'Nicht aktiv' : 'Nicht unterst\u00fctzt')
+    });
+
+    // 13 Cache API
+    var cacheSupported = 'caches' in window;
+    results.push({
+      name: 'Cache API',
+      platform: cacheSupported ? 'ok' : 'fail',
+      pwa: cacheSupported ? 'ok' : 'fail',
+      detail: cacheSupported ? 'Verf\u00fcgbar (SW nutzt es)' : 'Nicht unterst\u00fctzt'
+    });
+
+    // 14 Online Status
+    results.push({
+      name: 'Online',
+      platform: navigator.onLine ? 'ok' : 'fail',
+      pwa: 'ok',
+      detail: navigator.onLine ? 'Verbunden' : 'Offline'
+    });
+
+    // 15 localStorage
+    var lsSupported = 'localStorage' in window;
+    results.push({
+      name: 'localStorage',
+      platform: lsSupported ? 'ok' : 'fail',
+      pwa: lsSupported ? 'ok' : 'fail',
+      detail: lsSupported ? 'Verf\u00fcgbar (wird genutzt)' : 'Nicht unterst\u00fctzt'
+    });
+
+    renderSysTest(results);
+    document.getElementById('sysTestModal').showModal();
+  }
+
+  function renderSysTest(results) {
+    var c = document.getElementById('sysTestResults');
+    if (!c) return;
+    var h = '';
+    for (var i = 0; i < results.length; i++) {
+      var r = results[i];
+
+      var pIcon = r.platform === 'ok' ? '\u2705' : (r.platform === 'warn' ? '\u26A0\uFE0F' : '\u274C');
+      var pCls = r.platform === 'ok' ? 'badge-ok' : (r.platform === 'warn' ? 'badge-warn' : 'badge-fail');
+      var pTxt = r.platform === 'ok' ? 'Verf\u00fcgbar' : (r.platform === 'warn' ? 'Eingeschr\u00e4nkt' : 'Nicht unterst\u00fctzt');
+
+      var aIcon, aCls, aTxt;
+      if (r.pwa === 'ok') { aIcon = '\u2705'; aCls = 'badge-ok'; aTxt = 'Aktiv'; }
+      else if (r.pwa === 'planned') { aIcon = '\u23F3'; aCls = 'badge-planned'; aTxt = 'Geplant'; }
+      else if (r.pwa === 'warn') { aIcon = '\u26A0\uFE0F'; aCls = 'badge-warn'; aTxt = 'Warnung'; }
+      else { aIcon = '\u274C'; aCls = 'badge-fail'; aTxt = 'Nicht genutzt'; }
+
+      h += '<div class="sys-test-item">'
+        +   '<div class="sys-test-header"><span>' + pIcon + '</span>' + esc(r.name) + '</div>'
+        +   '<div class="sys-test-badges">'
+        +     '<span>Plattform: <span class="' + pCls + '">' + pTxt + '</span></span>'
+        +     '<span>PWA: <span class="' + aCls + '">' + aTxt + '</span></span>'
+        +   '</div>'
+        +   (r.detail ? '<div class="sys-test-detail">' + r.detail + '</div>' : '')
+        + '</div>';
+    }
+    c.innerHTML = h;
+  }
+
   window.addEventListener('beforeinstallprompt', function(e) {
     e.preventDefault();
     deferredPrompt = e;
@@ -984,6 +1196,16 @@
     });
     document.getElementById('resetDefaultsBtn').addEventListener('click', function() {
       loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderCfgList(); renderAll(); });
+    });
+    document.getElementById('sysTestBtn').addEventListener('click', function() {
+      document.getElementById('settingsModal').close();
+      runSysTest();
+    });
+    document.getElementById('closeSysTestBtn').addEventListener('click', function() {
+      document.getElementById('sysTestModal').close();
+    });
+    document.getElementById('rerunSysTest').addEventListener('click', function() {
+      runSysTest();
     });
     document.getElementById('refreshBtn').addEventListener('click', function() {
       document.getElementById('settingsModal').close();
