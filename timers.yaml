@@ -38,7 +38,7 @@ timers:
     show_minutes: false
     yellow_after: 24*7
     red_after: 24*10
-  - name: Medication
+  - name: Pills
     type: schedule
     times: ["08:00", "14:00", "20:00"]
     unit: minutes
