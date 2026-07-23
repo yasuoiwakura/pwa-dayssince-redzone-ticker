@@ -1,7 +1,7 @@
 {
-  "name": "Red Zone Ticker",
+  "name": "Red Zone Reminder",
   "short_name": "RedZone",
-  "description": "Count-up timer für rote Zonen",
+  "description": "Count-up timer with color zones",
   "start_url": "index.html",
   "scope": ".",
   "display": "standalone",
