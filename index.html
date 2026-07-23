@@ -909,7 +909,12 @@
     for (var j = 0; j < btns.length; j++) {
       (function(idx) {
         btns[idx].addEventListener('click', function() {
-          resetTimer(parseInt(this.getAttribute('data-idx'), 10));
+          var idx2 = parseInt(this.getAttribute('data-idx'), 10);
+          if (timers[idx2] && timers[idx2].type === 'checkin') {
+            ackAlarm(idx2);
+          } else {
+            resetTimer(idx2);
+          }
           tick();
         });
       })(j);
@@ -1356,12 +1361,8 @@
     if (existing) return;
     var banner = document.createElement('div');
     banner.className = 'alarm-banner';
-    banner.innerHTML = '<span class="alarm-text">\u26A0\uFE0F ' + esc(t.name) + ' auslegen! (' + Math.round(dist) + 'm)</span>'
-      + '<button class="alarm-btn" data-idx="' + idx + '">\uD83D\uDD15 Erledigt</button>';
+    banner.innerHTML = '<span class="alarm-text">\u26A0\uFE0F ' + esc(t.name) + ' auslegen! (' + Math.round(dist) + 'm)</span>';
     card.querySelector('.timer-left').appendChild(banner);
-    banner.querySelector('.alarm-btn').addEventListener('click', function() {
-      ackAlarm(idx);
-    });
     card.classList.add('timer-card-alarm');
     // Repeat starten
     if (t.repeat_minutes && t.repeat_minutes > 0) {
