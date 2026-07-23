@@ -953,12 +953,28 @@
       if (t.type === 'checkin') {
         var locObj2 = t.location ? getLocByName(t.location) : null;
         var hasCoords2 = locObj2 && locObj2.lat != null && locObj2.lng != null;
+        var isActive = geoState.active;
+        var inZone2 = geoState.inZone && geoState.inZone[i];
         var nameEl = document.getElementById('n'+i);
         if (nameEl) nameEl.style.color = geoState.acked[i] ? '#33ff33' : '#ffcc00';
         var valEl = document.getElementById('v'+i);
         if (valEl) {
-          valEl.textContent = !hasCoords2 && !geoState.acked[i] ? '\u2753' : (geoState.acked[i] ? '\u2714' : '\uD83D\uDCCD');
-          valEl.style.color = !hasCoords2 && !geoState.acked[i] ? '#888' : (geoState.acked[i] ? '#33ff33' : '#ffcc00');
+          if (geoState.acked[i]) {
+            valEl.textContent = '\u2714';
+            valEl.style.color = '#33ff33';
+          } else if (!hasCoords2) {
+            valEl.textContent = '\u2753';
+            valEl.style.color = '#888';
+          } else if (!isActive) {
+            valEl.textContent = '\uD83D\uDD34';
+            valEl.style.color = '#ff3333';
+          } else if (inZone2) {
+            valEl.textContent = '\uD83D\uDCCD';
+            valEl.style.color = '#ffcc00';
+          } else {
+            valEl.textContent = '\u26AB';
+            valEl.style.color = '#888';
+          }
         }
         continue;
       }
@@ -1417,15 +1433,19 @@
       var active = geoState.active;
       var acked = !!geoState.acked[i];
       var inZone = geoState.inZone && geoState.inZone[i];
-      if (active) {
-        geoEl.innerHTML = '<span class="geo-active">\u25CF GPS aktiv</span>'
-          + (t._geoDist !== undefined ? ' \u00B7 ' + Math.round(t._geoDist) + 'm' : '')
-          + (acked ? ' \u00B7 <span style="color:#33ff33">\u2714 Erledigt</span>' : '');
-      } else {
-        geoEl.innerHTML = '<span class="geo-inactive">\u26A0 GPS inaktiv \u2013 App offen lassen</span>'
+      var dist = t._geoDist;
+      if (!active) {
+        geoEl.innerHTML = '<span style="color:#ff3333">\uD83D\uDD34 GPS inaktiv</span>'
           + ' <button class="alarm-btn geo-start-btn" style="font-size:0.7rem;padding:2px 8px">GPS start</button>';
       var startBtn = geoEl.querySelector('.geo-start-btn');
       if (startBtn) startBtn.addEventListener('click', startGpsPolling);
+      } else if (inZone) {
+        geoEl.innerHTML = '<span class="geo-active">\u25CF Im Geofence</span>'
+          + (acked ? ' \u00B7 <span style="color:#33ff33">\u2714 Erledigt</span>' : '')
+          + (dist !== undefined ? ' \u00B7 ' + Math.round(dist) + 'm' : '');
+      } else {
+        geoEl.innerHTML = '<span style="color:#888">\u26AB Au\u00DFerhalb</span>'
+          + (dist !== undefined ? ' \u00B7 ' + Math.round(dist) + 'm' : '');
       }
     }
     var statusEl = document.getElementById('geoStatus');
