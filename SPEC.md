@@ -134,18 +134,89 @@ Der Checkin-Timer muss folgende Zustände abbilden:
 
 ### 7.8 FR: Schedule Timer (Pillen-Reminder)
 
-Ein Timer mit mehreren täglichen Zeiten (`times: ["08:00", "14:00", "20:00"]`), angezeigt als ein Eintrag:
+Ein Timer mit mehreren täglichen Zeiten, dargestellt als Buttons nebeneinander (max. 3–4 pro Reihe, Wrap bei mehr).
 
-| Zustand | Value | Farbe | Beschreibung |
+#### YAML-Schema
+
+```yaml
+timers:
+  - name: Pille
+    type: schedule
+    times: ["08:00", "14:00", "20:00"]
+    unit: minutes
+    ready_before: 10        # min vor Soll → blau
+    yellow_after: 10        # min nach Soll → gelb
+    red_after: 30           # min nach Soll → rot
+    max_overdue: 120        # min → danach lila (optional)
+    repeat_minutes: 5       # alle 5 min Notification (optional)
+    repeat_max: 12          # max Notification-Wiederholungen pro Slot (optional)
+    notify: true
+    notification_type: push # override globalen Default (optional)
+```
+
+#### Zustandsmatrix
+
+| Zustand | Bedingung | Button-Farbe | Delta |
 |---|---|---|---|
-| Nächste Zeit > jetzt | `→ 14:00` | Grau `#888` | Noch nicht fällig |
-| Fällig, nicht genommen | Count-up | Gelb → Rot | Minuten seit verpasster Zeit |
-| Genommen | `✔ 08:00` | Grün `#33ff33` | Für diesen Slot quittiert |
+| **Grau** | `jetzt < soll - ready_before` | `#888` | `→ 4h` |
+| **Blau** | `soll - ready_before ≤ jetzt < soll + yellow_after` | `#4488ff` | `→ 8m` / `+3m` |
+| **Gelb** | `soll + yellow_after ≤ jetzt < soll + red_after` | `#ffcc00` | `+22m` |
+| **Rot** | `soll + red_after ≤ jetzt ≤ soll + max_overdue` | `#ff3333` | `+1h 20m` |
+| **Lila** | `jetzt > soll + max_overdue` oder von nächster `times[]` überholt | `#aa44ff` | `+3h` |
+| **Grün** | Quittiert (✔) | `#33ff33` | `+5m` |
 
-- **Storage:** `redzone_schedule_taken` – pro Timer-Index + Datum → Liste der genommenen Uhrzeiten
-- **✓-Button** markiert den aktuell fälligen Slot als genommen
-- **Notify** beim Überschreiten einer `times[]`-Uhrzeit
-- **Optional später:** Blaue Vorwarnung N Minuten vor Fälligkeit
+#### UI (pro Button, 3 Zeilen)
+
+```
+┌──────────────┐
+│    14:00     │  ← Soll (Zeile 1)
+│    15:25     │  ← Ist (Zeile 2, "—" wenn nicht quittiert)
+│   +1h 25m    │  ← Delta (Zeile 3, "→ Xh" bei Countdown)
+└──────────────┘
+```
+
+- Buttons in flex-row, gleich breit
+- Klick auf einen Button → markiert diesen Slot als genommen (Ist-Zeit = Klickzeitpunkt)
+- Frühes Quittieren (vor Soll) erlaubt → Delta negativ: `−5m`
+- `ready_before` ist immer relativ zur Soll-Zeit, konfigurierbar (default 10 min)
+
+#### Notification-Verhalten
+
+- Slot wird fällig → erste Notification
+- `repeat_minutes` + `repeat_max`: alle N Min. wiederholen, maximal M-mal pro Slot
+- **Lila = keine Notification** (Slot ist archiviert/ungültig)
+- Ist einer von `repeat_minutes`/`repeat_max` gesetzt, muss auch der andere gesetzt sein
+
+#### Storage
+
+```json
+// localStorage key: redzone_schedule_taken
+{
+  "0": {
+    "2026-07-23": {
+      "08:00": { "taken_at": "2026-07-23T07:55:00.000Z" },
+      "14:00": { "taken_at": "2026-07-23T15:25:00.000Z" }
+    }
+  }
+}
+```
+
+Pro Timer-Index → pro Datum → pro Soll-Zeit → `taken_at` (ISO-8601).
+
+#### Webhook-Payload (siehe §9)
+
+```json
+{
+  "action": "schedule_taken",
+  "timer": "Pille",
+  "timestamp": "2026-07-23T15:25:00.000Z",
+  "details": {
+    "scheduled_time": "14:00",
+    "actual_time": "15:25",
+    "delta_minutes": 85
+  }
+}
+```
 
 ### 7.9 FR: Notification-Type konfigurierbar
 

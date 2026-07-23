@@ -38,3 +38,13 @@ timers:
     show_minutes: false
     yellow_after: 24*7
     red_after: 24*10
+  - name: Pille
+    type: schedule
+    times: ["08:00", "14:00", "20:00"]
+    unit: minutes
+    yellow_after: 10
+    red_after: 30
+    max_overdue: 180
+    repeat_minutes: 5
+    repeat_max: 6
+    notify: true

@@ -348,6 +348,31 @@
 
   .timer-card-alarm { border: 2px solid #ff3333; border-radius: 10px; padding: 2px; margin-bottom: 4px; }
 
+  .schedule-grid {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
+    justify-content: center;
+  }
+  .schedule-slot {
+    flex: 1; min-width: 70px; max-width: 120px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1px; padding: 6px 4px;
+    border: 1px solid #333; border-radius: 8px;
+    background: #1a1a1a; cursor: pointer;
+    font-family: inherit; font-size: 0.75rem; line-height: 1.3;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .schedule-slot:hover { background: #2a2a2a; }
+  .schedule-slot:active { background: #333; transform: scale(0.97); }
+  .schedule-soll { font-weight: bold; font-size: 0.85rem; }
+  .schedule-ist { font-size: 0.7rem; opacity: 0.7; }
+  .schedule-delta { font-size: 0.72rem; font-weight: bold; }
+  .slot-gray { color: #888; }
+  .slot-blue { color: #6699ff; }
+  .slot-yellow { color: #ffcc00; }
+  .slot-red { color: #ff3333; }
+  .slot-purple { color: #aa44ff; }
+  .slot-green { color: #33ff33; border-color: #33ff33; background: #1a331a; }
+
   .loc-config-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
   .loc-config-item {
     display: flex; align-items: center; gap: 8px;
@@ -512,6 +537,7 @@
       <select id="editType" name="type">
         <option value="normal">Normal (Count-up)</option>
         <option value="checkin">Check-in (nur Ort)</option>
+        <option value="schedule">Plan (feste Uhrzeiten)</option>
       </select>
     </div>
     <div id="editTimerFields">
@@ -550,6 +576,40 @@
       <div class="form-group checkbox">
         <input id="editNotify" name="notify" type="checkbox" checked>
         <label for="editNotify">Benachrichtigung anzeigen</label>
+      </div>
+    </div>
+    <div id="editScheduleFields" style="display:none">
+      <div class="form-group">
+        <label for="editTimes">Uhrzeiten (komma-getrennt, z.B. 08:00,14:00,20:00)</label>
+        <input id="editTimes" name="times" type="text" placeholder="08:00,14:00,20:00">
+      </div>
+      <div class="form-group">
+        <label for="editReadyBefore">Bereitschaftsvorlauf (Minuten)</label>
+        <input id="editReadyBefore" name="ready_before" type="number" min="0" value="10">
+      </div>
+      <div class="form-group">
+        <label for="editSchYellowAfter">Gelb nach (Minuten &uuml;ber Ziel)</label>
+        <input id="editSchYellowAfter" name="sch_yellow_after" type="number" min="0" value="10">
+      </div>
+      <div class="form-group">
+        <label for="editSchRedAfter">Rot nach (Minuten &uuml;ber Ziel)</label>
+        <input id="editSchRedAfter" name="sch_red_after" type="number" min="0" value="30">
+      </div>
+      <div class="form-group">
+        <label for="editMaxOverdue">Max &uuml;berf&auml;llig (Minuten, 0 = Kein Limit)</label>
+        <input id="editMaxOverdue" name="max_overdue" type="number" min="0" value="0">
+      </div>
+      <div class="form-group">
+        <label for="editSchRepeatMin">Wiederholungsintervall (Minuten, 0 = Keine)</label>
+        <input id="editSchRepeatMin" name="sch_repeat_minutes" type="number" min="0" value="0">
+      </div>
+      <div class="form-group">
+        <label for="editSchRepeatMax">Max Wiederholungen (0 = Kein Limit)</label>
+        <input id="editSchRepeatMax" name="sch_repeat_max" type="number" min="0" value="0">
+      </div>
+      <div class="form-group checkbox">
+        <input id="editSchNotify" name="sch_notify" type="checkbox" checked>
+        <label for="editSchNotify">Benachrichtigung anzeigen</label>
       </div>
     </div>
     <div class="modal-actions">
@@ -619,6 +679,8 @@
   var geoState = { gpsWatchTimer: null, gpsRunning: false, acked: {}, active: false, repeatTimers: {}, gpsLastPos: null, gpsLastFix: null, gpsCapInterval: null };
   var LOCATIONS_KEY = 'redzone_locations';
   var GEO_ACK_KEY = 'redzone_geo_ack';
+  var SCHEDULE_TAKEN_KEY = 'redzone_schedule_taken';
+  var scheduleTaken = {};
 
   // ─── Minimal YAML Parser ───
   function parseYAML(text) {
@@ -699,24 +761,29 @@
             arr.push(null);
           }
         } else if (rest.indexOf(':') >= 0) {
-          var obj = {};
-          var co = rest.indexOf(':');
-          var k = rest.substring(0, co).trim();
-          var v = rest.substring(co + 1).trim();
-          obj[k] = v === '' ? null : scalar(v);
-          var sub = itemIndent + 2;
-          while (pos < lines.length) {
-            var nx = peek();
-            if (nx.indent < sub) break;
-            if (nx.indent > sub) { pos++; continue; }
-            if (nx.text.indexOf(':') < 0) { pos++; continue; }
-            var co2 = nx.text.indexOf(':');
-            var k2 = nx.text.substring(0, co2).trim();
-            var v2 = nx.text.substring(co2 + 1).trim();
-            obj[k2] = v2 === '' ? null : scalar(v2);
-            pos++;
+          // quoted string wie "08:00" → kein inline-mapping
+          if (rest.length >= 2 && ((rest[0] === '"' && rest[rest.length-1] === '"') || (rest[0] === "'" && rest[rest.length-1] === "'"))) {
+            arr.push(scalar(rest));
+          } else {
+            var obj = {};
+            var co = rest.indexOf(':');
+            var k = rest.substring(0, co).trim();
+            var v = rest.substring(co + 1).trim();
+            obj[k] = v === '' ? null : scalar(v);
+            var sub = itemIndent + 2;
+            while (pos < lines.length) {
+              var nx = peek();
+              if (nx.indent < sub) break;
+              if (nx.indent > sub) { pos++; continue; }
+              if (nx.text.indexOf(':') < 0) { pos++; continue; }
+              var co2 = nx.text.indexOf(':');
+              var k2 = nx.text.substring(0, co2).trim();
+              var v2 = nx.text.substring(co2 + 1).trim();
+              obj[k2] = v2 === '' ? null : scalar(v2);
+              pos++;
+            }
+            arr.push(obj);
           }
-          arr.push(obj);
         } else {
           arr.push(scalar(rest));
         }
@@ -740,6 +807,21 @@
   function normalizeTimer(t) {
     t.yellow_after = safeEval(t.yellow_after);
     t.red_after = safeEval(t.red_after);
+    if (t.type === 'schedule') {
+      t.ready_before = safeEval(t.ready_before) || 10;
+      t.max_overdue = safeEval(t.max_overdue) || 0;
+      t.repeat_minutes = safeEval(t.repeat_minutes) || 0;
+      t.repeat_max = safeEval(t.repeat_max) || 0;
+      if (typeof t.times === 'string') {
+        var ts = t.times.trim();
+        if (ts[0] === '[') {
+          try { t.times = JSON.parse(ts); } catch(e) { t.times = []; }
+        } else {
+          t.times = ts.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return /^\d{2}:\d{2}$/.test(s); });
+        }
+      }
+      if (t.notify === undefined) t.notify = true;
+    }
     return t;
   }
 
@@ -799,6 +881,35 @@
     localStorage.setItem(GEO_ACK_KEY, JSON.stringify(geoState.acked));
   }
 
+  function loadScheduleTaken() {
+    try { return JSON.parse(localStorage.getItem(SCHEDULE_TAKEN_KEY)) || {}; } catch(e) { return {}; }
+  }
+
+  function saveScheduleTaken() {
+    localStorage.setItem(SCHEDULE_TAKEN_KEY, JSON.stringify(scheduleTaken));
+  }
+
+  function isSlotTaken(idx, timeStr) {
+    var today = new Date().toISOString().slice(0, 10);
+    return !!(scheduleTaken[idx] && scheduleTaken[idx][today] && scheduleTaken[idx][today][timeStr]);
+  }
+
+  function markSlotTaken(idx, timeStr) {
+    var today = new Date().toISOString().slice(0, 10);
+    if (!scheduleTaken[idx]) scheduleTaken[idx] = {};
+    if (!scheduleTaken[idx][today]) scheduleTaken[idx][today] = {};
+    scheduleTaken[idx][today][timeStr] = { taken_at: new Date().toISOString() };
+    saveScheduleTaken();
+  }
+
+  function getSlotTakenAt(idx, timeStr) {
+    var today = new Date().toISOString().slice(0, 10);
+    if (scheduleTaken[idx] && scheduleTaken[idx][today] && scheduleTaken[idx][today][timeStr]) {
+      return scheduleTaken[idx][today][timeStr].taken_at;
+    }
+    return null;
+  }
+
   function haversine(lat1, lon1, lat2, lon2) {
     var R = 6371000;
     var dLat = (lat2 - lat1) * Math.PI / 180;
@@ -851,13 +962,27 @@
     initWakeLock();
     locations = loadLocations();
     geoState.acked = loadGeoAcks();
+    scheduleTaken = loadScheduleTaken();
     var gpsInt = localStorage.getItem('redzone_gps_interval');
     if (gpsInt) geoState.gpsCapInterval = parseInt(gpsInt, 10);
     var c = loadConfig();
     if (c) {
       if (Array.isArray(c)) { c.forEach(normalizeTimer); timers = c; }
       else { timers = c.timers || []; timers.forEach(normalizeTimer); }
-      renderAll(); initStatusBar(); if (hasGeoDependentTimer()) startGpsPolling(); return Promise.resolve();
+      var needsReload = false;
+      for (var mi = 0; mi < timers.length; mi++) {
+        if (timers[mi].type === 'schedule') {
+          var t = timers[mi].times;
+          if (!t || t.length === 0 || typeof t === 'string') { needsReload = true; break; }
+          for (var ti = 0; ti < t.length; ti++) { if (typeof t[ti] !== 'string') { needsReload = true; break; } }
+          if (needsReload) break;
+        }
+      }
+      if (needsReload) {
+        c = null;
+      } else {
+        renderAll(); initStatusBar(); if (hasGeoDependentTimer()) startGpsPolling(); return Promise.resolve();
+      }
     }
     return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); initStatusBar(); if (hasGeoDependentTimer()) startGpsPolling(); });
   }
@@ -937,6 +1062,17 @@
         + '<button class="timer-done" data-idx="'+i+'" title="Zur\u00fccksetzen">\u2713</button>'
         + '</div>';
     }
+    if (t.type === 'schedule') {
+      return '<div class="timer-card" id="c'+i+'">'
+        + '<div class="timer-left">'
+        + '<div class="timer-row">'
+        + '<div class="timer-name" style="color:#33ff33" id="n'+i+'">' + esc(t.name) + '</div>'
+        + '</div>'
+        + '<div class="timer-sub" style="color:#888">SCHEDULE</div>'
+        + '<div class="schedule-grid" id="sg'+i+'"></div>'
+        + '</div>'
+        + '</div>';
+    }
     return '<div class="timer-card" id="c'+i+'">'
       + '<div class="timer-left">'
       + '<div class="timer-row">'
@@ -953,9 +1089,140 @@
 
   function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+  // ─── Schedule Timer Helpers ───
+  var scheduleNotified = {}; // "idx_time" → notifyCount
+
+  function parseTimeStr(s) {
+    var p = s.split(':');
+    var h = parseInt(p[0], 10);
+    var m = parseInt(p[1], 10);
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    return d;
+  }
+
+  function scheduleDeltaStr(diffMs) {
+    var abs = Math.abs(diffMs);
+    var mins = Math.floor(abs / 60000);
+    var hours = Math.floor(mins / 60);
+    var remainMins = mins % 60;
+    if (hours > 0) return (diffMs < 0 ? '-' : '+') + hours + 'h ' + remainMins + 'm';
+    return (diffMs < 0 ? '-' : '+') + remainMins + 'm';
+  }
+
+  function getScheduleSlotState(t, timeStr, nowMs) {
+    var slotTime = parseTimeStr(timeStr).getTime();
+    var diffMs = nowMs - slotTime;
+    var diffMins = Math.round(diffMs / 60000);
+    var yellowAfter = t.yellow_after || 10;
+    var redAfter = t.red_after || 30;
+    var readyBefore = t.ready_before || 10;
+
+    if (diffMins < -readyBefore) return { state: 'gray', diffMs: diffMs, label: scheduleDeltaStr(diffMs) };
+    if (diffMins < yellowAfter) return { state: 'blue', diffMs: diffMs, label: scheduleDeltaStr(diffMs) };
+    if (diffMins < redAfter) return { state: 'yellow', diffMs: diffMs, label: scheduleDeltaStr(diffMs) };
+    if (t.max_overdue && diffMins > t.max_overdue) return { state: 'purple', diffMs: diffMs, label: scheduleDeltaStr(diffMs) };
+    // Check if overtaken by next time
+    var times = t.times || [];
+    var nextIdx = times.indexOf(timeStr) + 1;
+    if (nextIdx > 0 && nextIdx < times.length) {
+      var nextTime = parseTimeStr(times[nextIdx]).getTime();
+      if (nowMs >= nextTime) return { state: 'purple', diffMs: diffMs, label: scheduleDeltaStr(diffMs) };
+    }
+    return { state: 'red', diffMs: diffMs, label: scheduleDeltaStr(diffMs) };
+  }
+
+  function renderScheduleButtons(i, t) {
+    var grid = document.getElementById('sg' + i);
+    if (!grid) return;
+    var nowMs = Date.now();
+    var times = t.times || [];
+    var h = '';
+    for (var si = 0; si < times.length; si++) {
+      var timeStr = times[si];
+      var taken = isSlotTaken(i, timeStr);
+      var takenAt = taken ? getSlotTakenAt(i, timeStr) : null;
+      var istStr = '—';
+      var deltaStr = '';
+      var stateClass = 'slot-gray';
+
+      if (taken) {
+        stateClass = 'slot-green';
+        var takenMs = new Date(takenAt).getTime();
+        var sollMs = parseTimeStr(timeStr).getTime();
+        var deltaMs = takenMs - sollMs;
+        deltaStr = scheduleDeltaStr(deltaMs);
+        var takenLocal = new Date(takenAt);
+        istStr = String(takenLocal.getHours()).padStart(2,'0') + ':' + String(takenLocal.getMinutes()).padStart(2,'0');
+      } else {
+        var slotState = getScheduleSlotState(t, timeStr, nowMs);
+        stateClass = 'slot-' + slotState.state;
+        deltaStr = slotState.label;
+      }
+
+      h += '<div class="schedule-slot ' + stateClass + '" data-idx="' + i + '" data-time="' + timeStr + '">'
+        + '<div class="schedule-soll">' + timeStr + '</div>'
+        + '<div class="schedule-ist">' + istStr + '</div>'
+        + '<div class="schedule-delta">' + deltaStr + '</div>'
+        + '</div>';
+    }
+    grid.innerHTML = h;
+    // Attach click handlers
+    var slots = grid.querySelectorAll('.schedule-slot');
+    for (var sj = 0; sj < slots.length; sj++) {
+      (function(slotIdx, timeStr) {
+        slots[sj].addEventListener('click', function() {
+          if (isSlotTaken(slotIdx, timeStr)) return;
+          markSlotTaken(slotIdx, timeStr);
+          var nkey = slotIdx + '_' + timeStr;
+          delete scheduleNotified[nkey];
+          renderScheduleButtons(slotIdx, timers[slotIdx]);
+        });
+      })(i, times[sj]);
+    }
+    // Check for notification triggers
+    for (var si2 = 0; si2 < times.length; si2++) {
+      var ts = times[si2];
+      if (isSlotTaken(i, ts)) continue;
+      var st = getScheduleSlotState(t, ts, nowMs);
+      if (st.state === 'purple' || st.state === 'gray') {
+        var nk = i + '_' + ts;
+        delete scheduleNotified[nk];
+        continue;
+      }
+      var nkey = i + '_' + ts;
+      var count = scheduleNotified[nkey] || 0;
+      var repeatMin = t.repeat_minutes || 0;
+      var repeatMax = t.repeat_max || 0;
+      if (count === 0) {
+        scheduleNotified[nkey] = 1;
+        scheduleNotified[nkey + '_ts'] = nowMs;
+        if (t.notify) fireScheduleNotification(t, ts, st.label);
+      } else if (repeatMin > 0 && repeatMax > 0 && count < repeatMax) {
+        var lastNotify = scheduleNotified[nkey + '_ts'] || 0;
+        if (nowMs - lastNotify >= repeatMin * 60000) {
+          scheduleNotified[nkey] = count + 1;
+          scheduleNotified[nkey + '_ts'] = nowMs;
+          if (t.notify) fireScheduleNotification(t, ts, st.label);
+        }
+      }
+    }
+  }
+
+  function fireScheduleNotification(t, timeStr, label) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var locName = t.location || '';
+    var msg = t.name + (locName ? ' @ ' + locName : '') + ' ' + timeStr + ' (' + label + ')';
+    sendTestNotification(msg, msg);
+  }
+
   function tick() {
     for (var i = 0; i < timers.length; i++) {
       var t = timers[i];
+      if (t.type === 'schedule') {
+        renderScheduleButtons(i, t);
+        continue;
+      }
       if (t.type === 'checkin') {
         var locObj2 = t.location ? getLocByName(t.location) : null;
         var hasCoords2 = locObj2 && locObj2.lat != null && locObj2.lng != null;
@@ -1481,8 +1748,8 @@
     var h = '';
     for (var i = 0; i < timers.length; i++) {
       var t = timers[i];
-      var meta = (t.type === 'checkin' ? 'Check-in' : unitLabel(t.unit));
-      if (t.type !== 'checkin') {
+      var meta = (t.type === 'checkin' ? 'Check-in' : t.type === 'schedule' ? 'Plan [' + (t.times || []).join(', ') + ']' : unitLabel(t.unit));
+      if (t.type === 'normal') {
         meta += (t.show_minutes ? ' \u00B7 mit Untereinheit' : '')
           + ' \u00B7 Gelb >' + t.yellow_after + ' \u00B7 Rot >' + t.red_after;
       }
@@ -1604,7 +1871,7 @@
       title.textContent = 'Timer bearbeiten';
       var t = timers[idx];
       document.getElementById('editName').value = t.name;
-      document.getElementById('editType').value = t.type === 'checkin' ? 'checkin' : 'normal';
+      document.getElementById('editType').value = t.type === 'checkin' ? 'checkin' : t.type === 'schedule' ? 'schedule' : 'normal';
       document.getElementById('editUnit').value = t.unit || 'hours';
       document.getElementById('editShowMinutes').checked = !!t.show_minutes;
       document.getElementById('editYellow').value = t.yellow_after || 0;
@@ -1615,6 +1882,23 @@
       if (rep) rep.value = t.repeat_minutes || 1;
       var not = document.getElementById('editNotify');
       if (not) not.checked = t.notify !== false;
+      // Schedule fields
+      var editTimes = document.getElementById('editTimes');
+      if (editTimes) editTimes.value = (t.times || []).join(',');
+      var editReadyBefore = document.getElementById('editReadyBefore');
+      if (editReadyBefore) editReadyBefore.value = t.ready_before || 10;
+      var editSchYellowAfter = document.getElementById('editSchYellowAfter');
+      if (editSchYellowAfter) editSchYellowAfter.value = t.yellow_after || 10;
+      var editSchRedAfter = document.getElementById('editSchRedAfter');
+      if (editSchRedAfter) editSchRedAfter.value = t.red_after || 30;
+      var editMaxOverdue = document.getElementById('editMaxOverdue');
+      if (editMaxOverdue) editMaxOverdue.value = t.max_overdue || 0;
+      var editSchRepeatMin = document.getElementById('editSchRepeatMin');
+      if (editSchRepeatMin) editSchRepeatMin.value = t.repeat_minutes || 0;
+      var editSchRepeatMax = document.getElementById('editSchRepeatMax');
+      if (editSchRepeatMax) editSchRepeatMax.value = t.repeat_max || 0;
+      var editSchNotify = document.getElementById('editSchNotify');
+      if (editSchNotify) editSchNotify.checked = t.notify !== false;
     } else {
       title.textContent = 'Neuer Timer';
       document.getElementById('editType').value = 'normal';
@@ -1628,8 +1912,9 @@
 
   function toggleEditFields() {
     var type = document.getElementById('editType').value;
-    document.getElementById('editTimerFields').style.display = type === 'checkin' ? 'none' : '';
+    document.getElementById('editTimerFields').style.display = (type === 'checkin' || type === 'schedule') ? 'none' : '';
     document.getElementById('editCheckinFields').style.display = type === 'checkin' ? '' : 'none';
+    document.getElementById('editScheduleFields').style.display = type === 'schedule' ? '' : 'none';
   }
 
   function saveEdit(fd) {
@@ -1643,6 +1928,18 @@
       t.show_minutes = false;
       t.yellow_after = 0;
       t.red_after = 0;
+    } else if (type === 'schedule') {
+      var timesStr = fd.get('times') || '';
+      t.times = timesStr.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return /^\d{2}:\d{2}$/.test(s); });
+      t.ready_before = parseInt(fd.get('ready_before'), 10) || 10;
+      t.yellow_after = parseInt(fd.get('sch_yellow_after'), 10) || 10;
+      t.red_after = parseInt(fd.get('sch_red_after'), 10) || 30;
+      t.max_overdue = parseInt(fd.get('max_overdue'), 10) || 0;
+      t.repeat_minutes = parseInt(fd.get('sch_repeat_minutes'), 10) || 0;
+      t.repeat_max = parseInt(fd.get('sch_repeat_max'), 10) || 0;
+      t.notify = fd.get('sch_notify') === 'on';
+      t.unit = 'hours';
+      t.show_minutes = false;
     } else {
       t.unit = fd.get('unit');
       t.show_minutes = fd.get('show_minutes') === 'on';
@@ -2021,6 +2318,9 @@
         clearAlarm(ri);
       }
       geoState.inZone = {};
+      scheduleTaken = {};
+      saveScheduleTaken();
+      scheduleNotified = {};
       if (geoState.gpsRunning) {
         doGpsTick();
       } else {
