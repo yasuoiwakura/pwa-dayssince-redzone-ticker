@@ -16,7 +16,7 @@ timers:
     repeat_minutes: 1
     notify: true
   - name: Zahnseide
-    unit: hours
+    unit: days
     show_minutes: true
     yellow_after: 24*3
     red_after: 24*4
@@ -26,7 +26,7 @@ timers:
     yellow_after: 24*2
     red_after: 24*4
   - name: Refill Plant Water
-    unit: minutes
+    unit: days
     show_minutes: false
     yellow_after: 24*7
     red_after: 24*10
