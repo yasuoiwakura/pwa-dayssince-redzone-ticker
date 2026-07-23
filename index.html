@@ -961,7 +961,12 @@
         var isActive = geoState.active;
         var inZone2 = geoState.inZone && geoState.inZone[i];
         var nameEl = document.getElementById('n'+i);
-        if (nameEl) nameEl.style.color = geoState.acked[i] ? '#33ff33' : '#ffcc00';
+        if (nameEl) {
+          if (geoState.acked[i]) nameEl.style.color = '#33ff33';
+          else if (!hasCoords2 || !isActive) nameEl.style.color = '#ff3333';
+          else if (inZone2) nameEl.style.color = '#ffcc00';
+          else nameEl.style.color = '#888';
+        }
         var valEl = document.getElementById('v'+i);
         if (valEl) {
           if (geoState.acked[i]) {
