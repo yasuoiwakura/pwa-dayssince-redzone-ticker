@@ -16,8 +16,11 @@ Or deploy to GitHub Pages / Netlify / any static host.
 ## Features
 
 - **Count-up timer** – days, hours, or minutes since last reset
-- **Color zones** – per-timer thresholds: green → yellow → red
-- **One-tap reset** – checkmark button resets a timer to now
+- **Schedule timer** – multiple daily slots (e.g. pill reminder), 3-line buttons with Soll/Ist/Delta, color zones per slot
+- **Geofence checkin** – GPS-based zone entry detection, auto-alarm when entering a location
+- **Color zones** – per-timer thresholds: green → yellow → red (schedule: gray → blue → yellow → red → purple → green)
+- **Notifications** – push with repeat intervals for schedule slots
+- **One-tap reset** – checkmark button resets a timer to now (or acks a geofence/schedule slot)
 - **Dark theme** – optimized for dashboards, workshops, bedside
 - **Kiosk mode** – keeps screen on, hides status bar (gear icon → Statusleiste → Vollbild)
 - **Installable** – "Install as app" for standalone fullscreen mode
@@ -31,12 +34,39 @@ Default timers are loaded from `timers.yaml`. Once loaded, they're managed in `l
 ```yaml
 wake_lock: true           # screen wake lock on/off
 status_bar: normal        # normal | blend | hide
+gps_interval: 60          # GPS poll interval in seconds
+
+locations:
+  - name: Home
+    radius: 50
+  - name: Office
+    lat: 52.42
+    lng: 9.60
+    radius: 100
+
 timers:
   - name: Example
     unit: hours           # hours | days | minutes
     show_minutes: true    # show sub-unit?
     yellow_after: 8       # yellow after (in timer unit)
     red_after: 12         # red after (in timer unit)
+
+  - name: Geofence Checkin
+    type: checkin
+    location: Home
+    repeat_minutes: 1
+    notify: true
+
+  - name: Pille
+    type: schedule
+    times: ["08:00", "14:00", "20:00"]
+    ready_before: 10
+    yellow_after: 10
+    red_after: 30
+    max_overdue: 180
+    repeat_minutes: 5
+    repeat_max: 6
+    notify: true
 ```
 
 Math expressions like `24*3` are evaluated automatically.
@@ -64,4 +94,4 @@ Open Settings → **Systemprüfung** to check which PWA features your device sup
 - **Service Worker** – caches `index.html`, `manifest.json`, `timers.yaml`
 - **Screen Wake Lock API** – `navigator.wakeLock.request('screen')` + video fallback
 - **Fullscreen API** – `requestFullscreen` for kiosk mode
-- **Geolocation API** – planned for geofence reminders
+- **Geolocation API** – geofence checkin with adaptive polling

@@ -13,7 +13,9 @@
 | Dark Theme | #121212 Hintergrund, monospace | ✅ Implementiert |
 | Geofence (GPS) | Checkin-Timer mit Zonen-Eintritt via GPS | ✅ Implementiert |
 | Adaptives GPS-Polling | Dynamisches Intervall (3s – 60s) basierend auf Distanz | ✅ Implementiert |
-| Schedule Timer (Pillen) | Mehrere tägliche Zeiten, Count-up ab Fälligkeit | ⏳ Geplant |
+| Geofence-Statusfarben | Grau (außerhalb) / Rot (GPS aus) / Gelb (in Zone) / Grün (bestätigt) | ✅ Implementiert |
+| Schedule Timer (Pillen) | Mehrere tägliche Zeiten, 3-Zeilen-Buttons, Farbzonen + Notifications | ✅ Implementiert |
+| Schedule Notifications | Wiederholung via `repeat_minutes`/`repeat_max`, farbabhängig (blau/gelb/rot) | ✅ Implementiert |
 | Notification-Typen | Push / Audio / Vibration / Stumm, pro Timer überschreibbar | ⏳ Geplant |
 
 ## 2. PWA-Features
@@ -32,12 +34,14 @@
 
 | Feature | Spezifikation | API | Status |
 |---|---|---|---|
-| **Schedule Timer** | Mehrere tägliche Zeiten (z.B. Pille 8:00/14:00/20:00), Count-up ab verpasster Zeit, Farbzonen | `setInterval` + `tick()` | ⏳ Geplant |
+| **Webhook-Integration** | Events an konfigurierbaren Webhook senden, Sync letzter Aktionen | `fetch()` + `localStorage` | ⏳ Geplant |
+| **Google Sheets Backend** | Webhook-Ziel als Google Apps Script → Google Sheet | Apps Script Web App | 💡 Evaluation |
 | **Notification-Type: Audio** | Eigener Ton über `OscillatorNode` bei Alarm (Media-Lautstärke) | `AudioContext` | ⏳ Geplant |
 | **Notification-Type: Vibration** | Haptisches Feedback via `vibrate`-Pattern | `navigator.vibrate` | ⏳ Geplant |
 | **Default Notification-Typ** | Settings-Dropdown: Push / Audio / Vibration / Stumm | `localStorage` | ⏳ Geplant |
 | **Per-Timer Notification-Override** | YAML-Feld `notification_type` überschreibt globalen Default | YAML + `localStorage` | ⏳ Geplant |
-| **Bald-Farbe (Blau)** | Optionale Vorwarnung N Minuten vor Fälligkeit in Blau | `tick()` | 💡 Idee |
+| **Systemtest Runtime-Prüfung** | Tatsächlichen Permission-Status prüfen (nicht nur API-Existenz) | `Permissions API` | ⏳ Geplant |
+| **Notification requireInteraction + Vibrate** | Notification bleibt stehen + Vibrations-Pattern | `reg.showNotification()` | ⏳ Geplant |
 
 ## 4. Nicht geplant
 
@@ -51,11 +55,12 @@
 ## 5. Architektur
 
 - **Single-File Vanilla JS** – `index.html` enthält HTML + CSS + JS (kein Framework, kein Bundler)
-- **YAML-Parser** – minimaler Inline-Parser für `timers.yaml`
-- **localStorage** – Timer-Konfiguration, Startzeiten, Schedule-Taken-States, Notification-Einstellungen
+- **YAML-Parser** – minimaler Inline-Parser für `timers.yaml` (Block-Sequenzen + skalare Werte, Inline-Arrays via JSON.parse-Fallback)
+- **localStorage** – Timer-Konfiguration, Startzeiten, Schedule-Taken-States, Notification-Einstellungen, Webhook-Secret
 - **Service Worker** – Cache-first für `index.html`, `manifest.json`, `timers.yaml`
 - **Wake Lock** – primär `navigator.wakeLock.request()`, Fallback via unsichtbares Loop-Video
 - **Notification-Typen** – `reg.showNotification()` (Push), `AudioContext` (Audio), `navigator.vibrate()` (Vibration), Default + Per-Timer-Override
+- **Layout** – Schedule-Timer: CSS Grid (Name + Button-Gruppe), responsive: Stapel unter 520px, nebeneinander ab 520px; Button-Gruppe mit `grid-auto-flow: column` für gleichbreite Slots
 
 ## 6. Testmatrix (vorläufig)
 
@@ -65,7 +70,7 @@
 | Geofence (Checkin) | ✅ | ✅ | ✅ | ✅ |
 | GPS Auto-Polling | ✅ | ✅ | ✅ | ✅ |
 | Settings-UI | ✅ | ✅ | ✅ | ✅ |
-| Schedule Timer (Pillen) | ⏳ | ⏳ | ⏳ | ⏳ |
+| Schedule Timer (Pillen) | ✅ | ✅ | ✅ | ✅ |
 | Notification: Push | ✅ | ✅ | ✅ | ✅ |
 | Notification: Audio | ⏳ | ⏳ | ⏳ | ⏳ |
 | Notification: Vibration | ⏳ | ⏳ | ❌ | ⏳ |
@@ -116,23 +121,25 @@ Der Checkin-Timer muss folgende Zustände abbilden:
 - **Keine Permission-Abfrage** für Notification wurde je durchgeführt.
 - **TODO:** Permission-Abfrage für Notification beim ersten Geofence-Alarm + Permissions-Menü.
 
-### 7.5 GPS-Position per "Hier" setzen
+### 7.5 GPS-Position per "Hier" setzen – ✅ Implementiert seit 2026-07-23
 
 - **FR:** Für lokale Tests soll man in den Settings die aktuelle GPS-Position per Knopfdruck übernehmen können (ohne Koordinaten manuell einzugeben).
 - Verhindert, dass private Standorte (z.B. Zuhause) in Git landen.
-- **TODO:** Button "Hier" in der Location-Edit-Maske – ruft `getCurrentPosition()` ab und befüllt Lat/Lng-Felder.
+- **Button "Hier"** in der Location-Edit-Maske – ruft `getCurrentPosition()` ab und befüllt Lat/Lng-Felder.
 
-### 7.6 Permissions-Menü fehlt
+### 7.6 Permissions-Menü – ✅ Implementiert seit 2026-07-23
 
-- Es gibt keinen zentralen Ort, um Zugriffsrechte anzufordern: GPS, Push Notifications, ggf. Wake Lock.
-- **TODO:** Settings um "Berechtigungen"-Abschnitt erweitern, der fehlende Berechtigungen anzeigt und per Button anfordert.
+- Settings um "Berechtigungen"-Abschnitt erweitert, der fehlende Berechtigungen anzeigt und per Button anfordert.
 
-### 7.7 Sonstige TODOs
+### 7.7 Sonstige TODOs & Completed
 
 - **"Standard laden" Cache-Busting:** ✅ Implementiert seit 2026-07-23 (`?t=Date.now()`).
 - **Service Worker:** `timers.yaml?t=...` wird nicht gecached – OK, da nur bei explizitem "Standard laden" verwendet.
+- **Geofence-Statusfarben:** ✅ Implementiert seit 2026-07-23 – Grau/Rot/Gelb/Grün in `updateGeoUI()` + `tick()`.
+- **Reset Geofences Button:** ✅ Implementiert – löscht `acked` + `inZone`, ruft `doGpsTick()`.
+- **Adaptives GPS-Polling:** ✅ Implementiert – Intervall 3s–60s je nach Distanz zur nächsten Zone.
 
-### 7.8 FR: Schedule Timer (Pillen-Reminder)
+### 7.8 Schedule Timer (Pillen-Reminder) – ✅ Implementiert seit 2026-07-23
 
 Ein Timer mit mehreren täglichen Zeiten, dargestellt als Buttons nebeneinander (max. 3–4 pro Reihe, Wrap bei mehr).
 
