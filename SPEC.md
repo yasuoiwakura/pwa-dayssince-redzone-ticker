@@ -117,6 +117,7 @@ Der Checkin-Timer muss folgende Zustände abbilden:
 
 - **"Standard laden" Cache-Busting:** ✅ Implementiert seit 2026-07-23 (`?t=Date.now()`).
 - **FR: Push erst bei Fahrzeug-Stillstand:** Sinnvolle Idee, aber Implementierung nicht geplant (würde Accelerometer + GPS-Geschwindigkeit erfordern, zu komplex für Phase 1).
+- **FR: Alternative Notification (Vibration / Media-Sound):** `reg.showNotification()` ist Browser-gesteuert (Chrome hängt URL an). Gewünscht: `requireInteraction: true` + `vibrate`-Pattern + ggf. eigener Media-Sound via `AudioContext` (Achtung: läuft über Media-Lautstärke, nicht System-Notification-Kanal). Siehe auch 7.4 (Permission-Abfrage).
 - **Service Worker:** `timers.yaml?t=...` wird nicht gecached – OK, da nur bei explizitem "Standard laden" verwendet.
 
 ## 8. Bekannte Einschränkungen
