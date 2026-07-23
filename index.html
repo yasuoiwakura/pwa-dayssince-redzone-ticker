@@ -161,6 +161,33 @@
     opacity: 0.3;
     color: #ff8888;
   }
+  #wakeCTA {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ff3333;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 28px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    z-index: 100;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    display: none;
+    box-shadow: 0 4px 24px rgba(255,0,0,0.4);
+    animation: wakePulse 2s ease-in-out infinite;
+    white-space: nowrap;
+  }
+  #wakeCTA:hover { background: #ff5555; }
+  #wakeCTA:active { background: #cc0000; }
+  @keyframes wakePulse {
+    0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+    50% { transform: translateX(-50%) scale(1.04); opacity: 0.85; }
+  }
 
   dialog {
     background: #1a1a1a;
@@ -296,6 +323,7 @@
 <main id="timers"></main>
 
 <div class="wake-status" id="wakeStatus">● Screen Lock</div>
+<button id="wakeCTA">click to keep screen active</button>
 
 <dialog id="settingsModal">
   <h2>Timer verwalten</h2>
@@ -670,35 +698,100 @@
   }
 
   // ─── Wake Lock ───
+  var noSleepVideo = null;
+
   function wakeEnabled() {
     return localStorage.getItem('redzone_wake_lock') !== 'false';
   }
 
+  function isWakeLockNA() {
+    return !('wakeLock' in navigator);
+  }
+
+  function startNoSleepVideo() {
+    if (noSleepVideo) return;
+    try {
+      var video = document.createElement('video');
+      video.setAttribute('loop', '');
+      video.setAttribute('muted', '');
+      video.setAttribute('playsinline', '');
+      video.style.position = 'fixed';
+      video.style.left = '-100vw';
+      video.style.top = '-100vh';
+      video.style.width = '1px';
+      video.style.height = '1px';
+      video.style.opacity = '0';
+      video.style.pointerEvents = 'none';
+      video.src = 'data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIHEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHGTbuMU6uEElTDZ1OsggETTbuMU6uEHFO7a1OsggHx7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBNgIRMYXZmV0GETGF2ZkSJiEBpAAAAAAAAFlSua8iuAQAAAAAAAD/XgQFzxYgAAAAAAAAAAZyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAJiWgDgkLCBAbqBAZqBAlWwhFW5gQESVMNn0HNzzWPAi2PFiAAAAAAAAAABZ8iYRaOHRU5DT0RFUkSHi0xhdmMgbGlidnB4Z8ihRaOIRFVSQVRJT05Eh5MwMDowMDowMC4yMDAwMDAwMDAAH0O2dUCD54EAo6KBAACAEAIAnQEqAQABAAvHCIWFiIWEiD+CAAwNYAD+5rUAo5WBACgAsQEALxH8ABgAGFgv9AAkAACjlYEAUACxAQAvEfwAGAAYWC/0ACQAAKOVgQB4ALEBAC8R/AAYABhYL/QAJAAAo5WBAKAAsQEALxH8ABgAGFgv9AAkAAAcU7trkbuPs4EAt4r3gQHxggFo8IED';
+      document.body.appendChild(video);
+      video.play();
+      noSleepVideo = video;
+    } catch(e) {
+      noSleepVideo = null;
+    }
+  }
+
+  function stopNoSleepVideo() {
+    if (noSleepVideo) {
+      try { noSleepVideo.pause(); } catch(e) {}
+      try { noSleepVideo.parentNode.removeChild(noSleepVideo); } catch(e) {}
+      noSleepVideo = null;
+    }
+  }
+
+  function showWakeCTA() {
+    var btn = document.getElementById('wakeCTA');
+    if (btn) btn.style.display = 'block';
+  }
+
+  function hideWakeCTA() {
+    var btn = document.getElementById('wakeCTA');
+    if (btn) btn.style.display = 'none';
+  }
+
   function reqWake() {
-    if (!('wakeLock' in navigator)) return;
     if (!wakeEnabled()) {
+      stopNoSleepVideo();
+      hideWakeCTA();
       var el = document.getElementById('wakeStatus');
       if (el) el.textContent = '○ Screen Lock (aus)';
       return;
     }
-    navigator.wakeLock.request('screen').then(function(l) {
-      wakeLock = l;
-      var e = document.getElementById('wakeStatus');
-      if (e) e.textContent = '● Screen Lock';
-      l.addEventListener('release', function() {
+    if (!isWakeLockNA()) {
+      navigator.wakeLock.request('screen').then(function(l) {
+        stopNoSleepVideo();
+        hideWakeCTA();
+        wakeLock = l;
+        var e = document.getElementById('wakeStatus');
+        if (e) e.textContent = '● Screen Lock';
+        l.addEventListener('release', function() {
+          var el = document.getElementById('wakeStatus');
+          if (el) el.textContent = '○ Screen Lock';
+        });
+      }).catch(function() {
+        showWakeCTA();
         var el = document.getElementById('wakeStatus');
-        if (el) el.textContent = '○ Screen Lock';
+        if (el) el.textContent = '○ Wake Lock n/a';
       });
-    }).catch(function() {
+    } else {
+      showWakeCTA();
       var el = document.getElementById('wakeStatus');
-      if (el) el.textContent = '○ Wake Lock n/a';
-    });
+      if (el) el.textContent = '○ Screen Lock (alt)';
+    }
   }
 
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') {
-      reqWake();
+      if (noSleepVideo) {
+        noSleepVideo.play()['catch'](function(){});
+      } else if (wakeEnabled()) {
+        reqWake();
+      }
       applyStatusBar();
+    } else {
+      if (noSleepVideo) {
+        try { noSleepVideo.pause(); } catch(e) {}
+      }
     }
   });
 
@@ -855,6 +948,16 @@
       wakeCheck.addEventListener('change', function() {
         localStorage.setItem('redzone_wake_lock', this.checked ? 'true' : 'false');
         reqWake();
+      });
+    }
+
+    var wakeBtn = document.getElementById('wakeCTA');
+    if (wakeBtn) {
+      wakeBtn.addEventListener('click', function() {
+        startNoSleepVideo();
+        hideWakeCTA();
+        var el = document.getElementById('wakeStatus');
+        if (el) el.textContent = '● Screen Lock (Video)';
       });
     }
 
