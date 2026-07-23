@@ -11,6 +11,10 @@
 | YAML-Konfiguration | Standard-Timer aus `timers.yaml` laden | ✅ Implementiert |
 | Settings-UI | Timer anlegen/bearbeiten/löschen | ✅ Implementiert |
 | Dark Theme | #121212 Hintergrund, monospace | ✅ Implementiert |
+| Geofence (GPS) | Checkin-Timer mit Zonen-Eintritt via GPS | ✅ Implementiert |
+| Adaptives GPS-Polling | Dynamisches Intervall (3s – 60s) basierend auf Distanz | ✅ Implementiert |
+| Schedule Timer (Pillen) | Mehrere tägliche Zeiten, Count-up ab Fälligkeit | ⏳ Geplant |
+| Notification-Typen | Push / Audio / Vibration / Stumm, pro Timer überschreibbar | ⏳ Geplant |
 
 ## 2. PWA-Features
 
@@ -28,15 +32,18 @@
 
 | Feature | Spezifikation | API | Status |
 |---|---|---|---|
-| **Geolocation (GPS)** | Geofence-Reminder: beim Betreten einer Zone (z.B. Kaufpark) an Parkscheibe erinnern | `navigator.geolocation` + `watchPosition` | ⏳ Geplant |
-| **Push Notifications** | Wiederholte Erinnerung (parametrierbar) in der Geofence-Zone | `Notification` + `PushManager` | ⏳ Geplant |
+| **Schedule Timer** | Mehrere tägliche Zeiten (z.B. Pille 8:00/14:00/20:00), Count-up ab verpasster Zeit, Farbzonen | `setInterval` + `tick()` | ⏳ Geplant |
+| **Notification-Type: Audio** | Eigener Ton über `OscillatorNode` bei Alarm (Media-Lautstärke) | `AudioContext` | ⏳ Geplant |
+| **Notification-Type: Vibration** | Haptisches Feedback via `vibrate`-Pattern | `navigator.vibrate` | ⏳ Geplant |
+| **Default Notification-Typ** | Settings-Dropdown: Push / Audio / Vibration / Stumm | `localStorage` | ⏳ Geplant |
+| **Per-Timer Notification-Override** | YAML-Feld `notification_type` überschreibt globalen Default | YAML + `localStorage` | ⏳ Geplant |
+| **Bald-Farbe (Blau)** | Optionale Vorwarnung N Minuten vor Fälligkeit in Blau | `tick()` | 💡 Idee |
 
 ## 4. Nicht geplant
 
 | Feature | Grund |
 |---|---|
 | Accelerometer / DeviceMotion | Kein Anwendungsfall für diese App |
-| Vibration | Kein Anwendungsfall |
 | Battery | Kein Anwendungsfall |
 | Background Sync / Periodic BG Sync | PWA-Limit: kein Location-Zugriff im Service Worker |
 | Push über Server | Würde Server-Infrastruktur erfordern – ist als PWA-Limit akzeptiert |
@@ -45,16 +52,23 @@
 
 - **Single-File Vanilla JS** – `index.html` enthält HTML + CSS + JS (kein Framework, kein Bundler)
 - **YAML-Parser** – minimaler Inline-Parser für `timers.yaml`
-- **localStorage** – Timer-Konfiguration und Startzeiten
+- **localStorage** – Timer-Konfiguration, Startzeiten, Schedule-Taken-States, Notification-Einstellungen
 - **Service Worker** – Cache-first für `index.html`, `manifest.json`, `timers.yaml`
 - **Wake Lock** – primär `navigator.wakeLock.request()`, Fallback via unsichtbares Loop-Video
+- **Notification-Typen** – `reg.showNotification()` (Push), `AudioContext` (Audio), `navigator.vibrate()` (Vibration), Default + Per-Timer-Override
 
 ## 6. Testmatrix (vorläufig)
 
 | Feature | Chrome Win | Chrome Android | Safari iOS | Firefox |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | Timer + Farbzonen | ✅ | ✅ | ✅ | ✅ |
+| Geofence (Checkin) | ✅ | ✅ | ✅ | ✅ |
+| GPS Auto-Polling | ✅ | ✅ | ✅ | ✅ |
 | Settings-UI | ✅ | ✅ | ✅ | ✅ |
+| Schedule Timer (Pillen) | ⏳ | ⏳ | ⏳ | ⏳ |
+| Notification: Push | ✅ | ✅ | ✅ | ✅ |
+| Notification: Audio | ⏳ | ⏳ | ⏳ | ⏳ |
+| Notification: Vibration | ⏳ | ⏳ | ❌ | ⏳ |
 | Wake Lock (API) | ✅ | ⚠️ | ❌ | ⚠️ |
 | Wake Lock (Video) | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
 | Fullscreen | ✅ | ✅ | ❌ | ✅ |
@@ -116,9 +130,64 @@ Der Checkin-Timer muss folgende Zustände abbilden:
 ### 7.7 Sonstige TODOs
 
 - **"Standard laden" Cache-Busting:** ✅ Implementiert seit 2026-07-23 (`?t=Date.now()`).
-- **FR: Push erst bei Fahrzeug-Stillstand:** Sinnvolle Idee, aber Implementierung nicht geplant (würde Accelerometer + GPS-Geschwindigkeit erfordern, zu komplex für Phase 1).
-- **FR: Alternative Notification (Vibration / Media-Sound):** `reg.showNotification()` ist Browser-gesteuert (Chrome hängt URL an). Gewünscht: `requireInteraction: true` + `vibrate`-Pattern + ggf. eigener Media-Sound via `AudioContext` (Achtung: läuft über Media-Lautstärke, nicht System-Notification-Kanal). Siehe auch 7.4 (Permission-Abfrage).
 - **Service Worker:** `timers.yaml?t=...` wird nicht gecached – OK, da nur bei explizitem "Standard laden" verwendet.
+
+### 7.8 FR: Schedule Timer (Pillen-Reminder)
+
+Ein Timer mit mehreren täglichen Zeiten (`times: ["08:00", "14:00", "20:00"]`), angezeigt als ein Eintrag:
+
+| Zustand | Value | Farbe | Beschreibung |
+|---|---|---|---|
+| Nächste Zeit > jetzt | `→ 14:00` | Grau `#888` | Noch nicht fällig |
+| Fällig, nicht genommen | Count-up | Gelb → Rot | Minuten seit verpasster Zeit |
+| Genommen | `✔ 08:00` | Grün `#33ff33` | Für diesen Slot quittiert |
+
+- **Storage:** `redzone_schedule_taken` – pro Timer-Index + Datum → Liste der genommenen Uhrzeiten
+- **✓-Button** markiert den aktuell fälligen Slot als genommen
+- **Notify** beim Überschreiten einer `times[]`-Uhrzeit
+- **Optional später:** Blaue Vorwarnung N Minuten vor Fälligkeit
+
+### 7.9 FR: Notification-Type konfigurierbar
+
+**Globaler Default** in Settings (Dropdown):
+
+| Typ | API | Anmerkung |
+|---|---|---|
+| `push` | `reg.showNotification()` | Aktuelles Verhalten, Chrome hängt URL an |
+| `audio` | `OscillatorNode` (AudioContext) | Kurzer Sinus-Ton, läuft über Media-Lautstärke |
+| `vibration` | `navigator.vibrate([200,100,200])` | Android-only, nicht auf iOS |
+| `stumm` | – | Nur In-App-Banner |
+
+**Per-Timer-Override** via YAML:
+
+```yaml
+timers:
+  - name: Pille
+    notification_type: audio
+```
+
+- **Storage Default:** `redzone_notification_default` in `localStorage`
+- **Auflösung:** `t.notification_type ?? localStorage.default ?? 'push'`
+
+### 7.10 FR: Systemtest Runtime-Prüfung
+
+Systemtest prüft aktuell nur API-Existenz, nicht Runtime:
+- `geolocation` → `navigator.permissions.query({ name: 'geolocation' })` für tatsächlichen Permission-Status
+- `wakeLock` → `request()` testen ob's wirklich funktioniert
+- `Notification` → `Notification.permission` anzeigen
+
+### 7.11 FR: Notification requireInteraction + Vibrate
+
+- `requireInteraction: true` – Notification bleibt stehen statt nach 8s zu verschwinden
+- `vibrate`-Pattern in der Notification-Option (nur Android)
+
+```javascript
+reg.showNotification(title, {
+  body: msg, icon: 'icon.svg',
+  requireInteraction: true,
+  vibrate: [200, 100, 200]
+});
+```
 
 ## 8. Bekannte Einschränkungen
 
