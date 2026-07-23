@@ -335,6 +335,15 @@
   .sys-test-detail {
     font-size: 0.73rem; color: #666; margin-left: 28px; margin-top: 2px;
   }
+  .sys-test-cat-header {
+    font-size: 0.78rem; letter-spacing: 0.1em; color: #777; text-transform: uppercase;
+    padding: 16px 0 6px 0; margin-top: 4px; border-top: 1px solid #2a2a2a;
+  }
+  .sys-test-cat-header:first-child { border-top: none; padding-top: 0; }
+  .sys-test-cat-empty {
+    text-align: center; color: #555; font-size: 0.8rem; font-style: italic;
+    padding: 12px 0 8px 0;
+  }
 </style>
 </head>
 <body>
@@ -953,150 +962,103 @@
   }
 
   // ─── System Test ───
+  var SYS_CAT_NEEDED = 1;
+  var SYS_CAT_IFCONFIG = 2;
+  var SYS_CAT_PLANNED = 3;
+  var SYS_CAT_UNNEEDED = 4;
+
   function runSysTest() {
     var results = [];
 
-    // 1 Screen Wake Lock
+    // ── Kategorie 1: Benötigt ──
     var wakeSupported = 'wakeLock' in navigator;
     var wakeActive = wakeLock !== null;
-    results.push({
-      name: 'Screen Wake Lock',
+    results.push({ category: SYS_CAT_NEEDED, name: 'Screen Wake Lock',
       platform: wakeSupported ? 'ok' : 'fail',
-      pwa: wakeActive ? 'ok' : (wakeSupported ? 'planned' : 'fail'),
+      pwa: wakeActive ? 'ok' : (wakeSupported ? 'warn' : 'fail'),
       detail: wakeActive ? 'Wake Lock wird gehalten'
-        : wakeSupported ? 'Nicht aktiv — geplant f\u00fcr Geo-Features'
-        : 'Nicht verf\u00fcgbar auf diesem Browser'
-    });
+        : wakeSupported ? 'Nicht aktiv (Video-Fallback verf\u00fcgbar)'
+        : 'Nicht verf\u00fcgbar auf diesem Browser' });
 
-    // 2 Geolocation (GPS)
-    var geoSupported = 'geolocation' in navigator;
-    results.push({
-      name: 'Geolocation (GPS)',
-      platform: geoSupported ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: geoSupported ? 'Berechtigung: ' + (navigator.permissions
-        ? 'wird gepr\u00fcft' : 'nach Klick') : 'Nicht verf\u00fcgbar (HTTPS n\u00f6tig?)'
-    });
-
-    // 3 Push Notifications
-    var pushSupported = 'Notification' in window;
-    var pushPerm = pushSupported ? Notification.permission : 'n/a';
-    results.push({
-      name: 'Push Notifications',
-      platform: pushSupported ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: pushSupported ? 'Permission: ' + pushPerm : 'Nicht unterst\u00fctzt'
-    });
-
-    // 4 Service Worker
     var swSupported = 'serviceWorker' in navigator;
     var swActive = swSupported && navigator.serviceWorker.controller !== null;
-    results.push({
-      name: 'Service Worker',
+    results.push({ category: SYS_CAT_NEEDED, name: 'Service Worker',
       platform: swSupported ? 'ok' : 'fail',
       pwa: swActive ? 'ok' : (swSupported ? 'warn' : 'fail'),
       detail: swActive ? 'Registriert (Cache v2)'
         : swSupported ? 'Nicht registriert (Seite neu laden?)'
-        : 'Nicht verf\u00fcgbar'
-    });
+        : 'Nicht verf\u00fcgbar' });
 
-    // 5 Installierbar (A2HS)
     var installable = deferredPrompt !== null;
     var installed = window.matchMedia('(display-mode: standalone)').matches;
-    results.push({
-      name: 'Installierbar (A2HS)',
+    results.push({ category: SYS_CAT_NEEDED, name: 'Installierbar (A2HS)',
       platform: installable ? 'ok' : 'warn',
       pwa: installed ? 'ok' : 'warn',
       detail: installed ? 'App ist installiert (Standalone)'
         : installable ? 'Install-Prompt verf\u00fcgbar'
-        : 'Nicht installierbar auf dieser Plattform'
-    });
+        : 'Nicht installierbar auf dieser Plattform' });
 
-    // 6 Accelerometer (Generic Sensor API)
-    results.push({
-      name: 'Accelerometer',
-      platform: 'Accelerometer' in window ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: 'Accelerometer' in window ? 'Nur Chromium-basiert' : 'Nicht unterst\u00fctzt (iOS/FF)'
-    });
-
-    // 7 DeviceMotion (iOS Fallback)
-    results.push({
-      name: 'DeviceMotion (iOS)',
-      platform: 'DeviceMotionEvent' in window ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: 'DeviceMotionEvent' in window ? 'iOS-Fallback verf\u00fcgbar' : 'Nicht unterst\u00fctzt'
-    });
-
-    // 8 Vibration
-    results.push({
-      name: 'Vibration',
-      platform: 'vibrate' in navigator ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: ''
-    });
-
-    // 9 Battery
-    var batterySupported = 'getBattery' in navigator;
-    results.push({
-      name: 'Battery',
-      platform: batterySupported ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: ''
-    });
-
-    // 10 Background Sync
-    var bgSync = 'SyncManager' in window;
-    results.push({
-      name: 'Background Sync',
-      platform: bgSync ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: bgSync ? 'Verf\u00fcgbar' : 'Nicht unterst\u00fctzt (iOS)'
-    });
-
-    // 11 Periodic Background Sync
-    results.push({
-      name: 'Periodic Background Sync',
-      platform: 'PeriodicSyncManager' in window ? 'ok' : 'fail',
-      pwa: 'planned',
-      detail: ''
-    });
-
-    // 12 Fullscreen
-    var fsSupported = document.fullscreenEnabled;
-    var fsActive = !!document.fullscreenElement;
-    results.push({
-      name: 'Fullscreen',
-      platform: fsSupported ? 'ok' : 'fail',
-      pwa: fsActive ? 'ok' : 'planned',
-      detail: fsActive ? 'Aktiv' : (fsSupported ? 'Nicht aktiv' : 'Nicht unterst\u00fctzt')
-    });
-
-    // 13 Cache API
-    var cacheSupported = 'caches' in window;
-    results.push({
-      name: 'Cache API',
-      platform: cacheSupported ? 'ok' : 'fail',
-      pwa: cacheSupported ? 'ok' : 'fail',
-      detail: cacheSupported ? 'Verf\u00fcgbar (SW nutzt es)' : 'Nicht unterst\u00fctzt'
-    });
-
-    // 14 Online Status
-    results.push({
-      name: 'Online',
-      platform: navigator.onLine ? 'ok' : 'fail',
-      pwa: 'ok',
-      detail: navigator.onLine ? 'Verbunden' : 'Offline'
-    });
-
-    // 15 localStorage
     var lsSupported = 'localStorage' in window;
-    results.push({
-      name: 'localStorage',
+    results.push({ category: SYS_CAT_NEEDED, name: 'localStorage',
       platform: lsSupported ? 'ok' : 'fail',
       pwa: lsSupported ? 'ok' : 'fail',
-      detail: lsSupported ? 'Verf\u00fcgbar (wird genutzt)' : 'Nicht unterst\u00fctzt'
-    });
+      detail: lsSupported ? 'Verf\u00fcgbar (wird genutzt)' : 'Nicht unterst\u00fctzt' });
+
+    var cacheSupported = 'caches' in window;
+    results.push({ category: SYS_CAT_NEEDED, name: 'Cache API',
+      platform: cacheSupported ? 'ok' : 'fail',
+      pwa: cacheSupported ? 'ok' : 'fail',
+      detail: cacheSupported ? 'Verf\u00fcgbar (SW nutzt es)' : 'Nicht unterst\u00fctzt' });
+
+    var fsSupported = document.fullscreenEnabled;
+    var fsActive = !!document.fullscreenElement;
+    results.push({ category: SYS_CAT_NEEDED, name: 'Fullscreen (Kiosk)',
+      platform: fsSupported ? 'ok' : 'fail',
+      pwa: fsActive ? 'ok' : 'warn',
+      detail: fsActive ? 'Aktiv (Kiosk-Mode)' : (fsSupported ? 'Nicht aktiv' : 'Nicht unterst\u00fctzt') });
+
+    // ── Kategorie 2: Benötigt falls konfiguriert ──
+    // (aktuell noch leer – wird später befüllt wenn Timer mit Ortsbindung etc. existieren)
+    // Platzhalter bleibt unverändert; renderSysTest zeigt leere Kategorie
+
+    // ── Kategorie 3: Benötigt für geplante Features ──
+    var geoSupported = 'geolocation' in navigator;
+    results.push({ category: SYS_CAT_PLANNED, name: 'Geolocation (GPS)',
+      platform: geoSupported ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: (geoSupported ? 'Verf\u00fcgbar' : 'Nicht verf\u00fcgbar (HTTPS?)')
+        + ' \u2192 Geofence-Reminder' });
+
+    var pushSupported = 'Notification' in window;
+    var pushPerm = pushSupported ? Notification.permission : 'n/a';
+    results.push({ category: SYS_CAT_PLANNED, name: 'Push Notifications',
+      platform: pushSupported ? 'ok' : 'fail',
+      pwa: 'planned',
+      detail: (pushSupported ? 'Permission: ' + pushPerm : 'Nicht unterst\u00fctzt')
+        + ' \u2192 Wiederholte Erinnerung' });
+
+    // ── Kategorie 4: Nicht benötigt ──
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'Accelerometer',
+      platform: 'Accelerometer' in window ? 'ok' : 'fail', pwa: 'unused',
+      detail: '' });
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'DeviceMotion (iOS)',
+      platform: 'DeviceMotionEvent' in window ? 'ok' : 'fail', pwa: 'unused',
+      detail: '' });
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'Vibration',
+      platform: 'vibrate' in navigator ? 'ok' : 'fail', pwa: 'unused',
+      detail: '' });
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'Battery',
+      platform: 'getBattery' in navigator ? 'ok' : 'fail', pwa: 'unused',
+      detail: '' });
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'Background Sync',
+      platform: 'SyncManager' in window ? 'ok' : 'fail', pwa: 'unused',
+      detail: '' });
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'Periodic Background Sync',
+      platform: 'PeriodicSyncManager' in window ? 'ok' : 'fail', pwa: 'unused',
+      detail: '' });
+    results.push({ category: SYS_CAT_UNNEEDED, name: 'Online',
+      platform: navigator.onLine ? 'ok' : 'fail', pwa: 'unused',
+      detail: navigator.onLine ? 'Verbunden' : 'Offline' });
 
     renderSysTest(results);
     document.getElementById('sysTestModal').showModal();
@@ -1105,28 +1067,56 @@
   function renderSysTest(results) {
     var c = document.getElementById('sysTestResults');
     if (!c) return;
+
+    var catLabels = {};
+    catLabels[SYS_CAT_NEEDED] = 'Ben\u00f6tigt';
+    catLabels[SYS_CAT_IFCONFIG] = 'Ben\u00f6tigt falls konfiguriert';
+    catLabels[SYS_CAT_PLANNED] = 'Geplante Features';
+    catLabels[SYS_CAT_UNNEEDED] = 'Nicht ben\u00f6tigt';
+
+    var catOrder = [SYS_CAT_NEEDED, SYS_CAT_IFCONFIG, SYS_CAT_PLANNED, SYS_CAT_UNNEEDED];
     var h = '';
-    for (var i = 0; i < results.length; i++) {
-      var r = results[i];
 
-      var pIcon = r.platform === 'ok' ? '\u2705' : (r.platform === 'warn' ? '\u26A0\uFE0F' : '\u274C');
-      var pCls = r.platform === 'ok' ? 'badge-ok' : (r.platform === 'warn' ? 'badge-warn' : 'badge-fail');
-      var pTxt = r.platform === 'ok' ? 'Verf\u00fcgbar' : (r.platform === 'warn' ? 'Eingeschr\u00e4nkt' : 'Nicht unterst\u00fctzt');
+    for (var ci = 0; ci < catOrder.length; ci++) {
+      var cat = catOrder[ci];
+      var items = [];
+      for (var i = 0; i < results.length; i++) {
+        if (results[i].category === cat) items.push(results[i]);
+      }
 
-      var aIcon, aCls, aTxt;
-      if (r.pwa === 'ok') { aIcon = '\u2705'; aCls = 'badge-ok'; aTxt = 'Aktiv'; }
-      else if (r.pwa === 'planned') { aIcon = '\u23F3'; aCls = 'badge-planned'; aTxt = 'Geplant'; }
-      else if (r.pwa === 'warn') { aIcon = '\u26A0\uFE0F'; aCls = 'badge-warn'; aTxt = 'Warnung'; }
-      else { aIcon = '\u274C'; aCls = 'badge-fail'; aTxt = 'Nicht genutzt'; }
+      if (!items.length) {
+        // Leere Kategorie: Header + Hinweis
+        if (ci > 0) h += '<div class="sys-test-cat-header">' + catLabels[cat] + '</div>';
+        else h += '<div class="sys-test-cat-header" style="border-top:none;padding-top:0">' + catLabels[cat] + '</div>';
+        h += '<div class="sys-test-cat-empty">\u2013 noch keine Konfiguration mit Abh\u00e4ngigkeiten \u2013</div>';
+        continue;
+      }
 
-      h += '<div class="sys-test-item">'
-        +   '<div class="sys-test-header"><span>' + pIcon + '</span>' + esc(r.name) + '</div>'
-        +   '<div class="sys-test-badges">'
-        +     '<span>Plattform: <span class="' + pCls + '">' + pTxt + '</span></span>'
-        +     '<span>PWA: <span class="' + aCls + '">' + aTxt + '</span></span>'
-        +   '</div>'
-        +   (r.detail ? '<div class="sys-test-detail">' + r.detail + '</div>' : '')
-        + '</div>';
+      if (ci > 0) h += '<div class="sys-test-cat-header">' + catLabels[cat] + '</div>';
+      else h += '<div class="sys-test-cat-header" style="border-top:none;padding-top:0">' + catLabels[cat] + '</div>';
+
+      for (var j = 0; j < items.length; j++) {
+        var r = items[j];
+
+        var pIcon = r.platform === 'ok' ? '\u2705' : (r.platform === 'warn' ? '\u26A0\uFE0F' : '\u274C');
+        var pCls = r.platform === 'ok' ? 'badge-ok' : (r.platform === 'warn' ? 'badge-warn' : 'badge-fail');
+        var pTxt = r.platform === 'ok' ? 'Verf\u00fcgbar' : (r.platform === 'warn' ? 'Eingeschr\u00e4nkt' : 'Nicht unterst\u00fctzt');
+
+        var aIcon, aCls, aTxt;
+        if (r.pwa === 'ok') { aIcon = '\u2705'; aCls = 'badge-ok'; aTxt = 'Aktiv'; }
+        else if (r.pwa === 'planned') { aIcon = '\u23F3'; aCls = 'badge-planned'; aTxt = 'Geplant'; }
+        else if (r.pwa === 'warn') { aIcon = '\u26A0\uFE0F'; aCls = 'badge-warn'; aTxt = 'Warnung'; }
+        else { aIcon = '\u2014'; aCls = 'badge-fail'; aTxt = 'Nicht ben\u00f6tigt'; }
+
+        h += '<div class="sys-test-item">'
+          +   '<div class="sys-test-header"><span>' + pIcon + '</span>' + esc(r.name) + '</div>'
+          +   '<div class="sys-test-badges">'
+          +     '<span>Plattform: <span class="' + pCls + '">' + pTxt + '</span></span>'
+          +     '<span>PWA: <span class="' + aCls + '">' + aTxt + '</span></span>'
+          +   '</div>'
+          +   (r.detail ? '<div class="sys-test-detail">' + r.detail + '</div>' : '')
+          + '</div>';
+      }
     }
     c.innerHTML = h;
   }
