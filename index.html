@@ -2017,7 +2017,15 @@
     document.getElementById('resetAcksBtn').addEventListener('click', function() {
       geoState.acked = {};
       saveGeoAcks();
-      renderAll();
+      for (var ri = 0; ri < timers.length; ri++) {
+        clearAlarm(ri);
+      }
+      geoState.inZone = {};
+      if (geoState.gpsRunning) {
+        doGpsTick();
+      } else {
+        startGpsPolling();
+      }
     });
     document.getElementById('sysTestBtn').addEventListener('click', function() {
       document.getElementById('settingsModal').close();
