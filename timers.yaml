@@ -2,6 +2,7 @@
 # Gelb-/Rot-Schwellen in der gleichen Einheit wie der Timer
 wake_lock: true
 status_bar: normal
+gps_interval: 60
 
 locations:
   - name: Shoppingcenter

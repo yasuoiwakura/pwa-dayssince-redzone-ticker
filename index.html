@@ -50,6 +50,7 @@
     line-height: 1;
   }
   .header-btn:hover { border-color: #ff3333; color: #fff; }
+  .header-btn-gps-on { border-color: #33ff33; color: #33ff33; }
   #settingsBtn { font-size: 1.3rem; padding: 6px 10px; }
 
   .header-actions {
@@ -321,7 +322,13 @@
     font-size: 0.75rem; color: #888; margin-top: 1px;
     display: flex; align-items: center; gap: 4px;
   }
-  .loc-dist { color: #ffcc00; }
+  .loc-dist { color: #ffcc00; transition: opacity 0.3s; }
+  @keyframes distPulse {
+    0% { opacity: 1; color: #fff; }
+    50% { opacity: 0.6; color: #ffcc00; }
+    100% { opacity: 1; color: #ffcc00; }
+  }
+  .dist-pulse { animation: distPulse 0.8s ease-out; }
 
   .alarm-banner {
     display: flex; align-items: center; justify-content: space-between;
@@ -436,6 +443,7 @@
   <div class="header-actions">
     <button id="installBtn" class="install-btn">Install as app</button>
     <button id="permHeaderBtn" class="header-btn" title="Zugriffsrechte">🔒</button>
+    <button id="gpsToggleBtn" class="header-btn" title="GPS">📍</button>
     <button id="sysTestHeaderBtn" class="header-btn" title="Systemprüfung">☑</button>
     <button id="settingsBtn" class="header-btn" title="Timer verwalten">⚙</button>
   </div>
@@ -596,7 +604,7 @@
   var locations = [];
   var editingIndex = -1;
   var deferredPrompt = null;
-  var geoState = { watchId: null, acked: {}, active: false, repeatTimers: {} };
+  var geoState = { gpsWatchTimer: null, gpsRunning: false, acked: {}, active: false, repeatTimers: {}, gpsLastPos: null, gpsLastFix: null, gpsCapInterval: null };
   var LOCATIONS_KEY = 'redzone_locations';
   var GEO_ACK_KEY = 'redzone_geo_ack';
 
@@ -796,6 +804,10 @@
         var p = parseYAML(text);
         if (p && p.timers && Array.isArray(p.timers) && p.timers.length > 0) {
           p.timers.forEach(normalizeTimer);
+          if (p.gps_interval && p.gps_interval > 0) {
+            localStorage.setItem('redzone_gps_interval', p.gps_interval);
+            geoState.gpsCapInterval = parseInt(p.gps_interval, 10);
+          }
           if (p.wake_lock === false || p.wake_lock === 'false') {
             localStorage.setItem('redzone_wake_lock', 'false');
           }
@@ -813,17 +825,26 @@
       .catch(function() { return defaultConfig(); });
   }
 
+  function hasGeoDependentTimer() {
+    for (var gi = 0; gi < timers.length; gi++) {
+      if (timers[gi].location) return true;
+    }
+    return false;
+  }
+
   function initConfig() {
     initWakeLock();
     locations = loadLocations();
     geoState.acked = loadGeoAcks();
+    var gpsInt = localStorage.getItem('redzone_gps_interval');
+    if (gpsInt) geoState.gpsCapInterval = parseInt(gpsInt, 10);
     var c = loadConfig();
     if (c) {
       if (Array.isArray(c)) { c.forEach(normalizeTimer); timers = c; }
       else { timers = c.timers || []; timers.forEach(normalizeTimer); }
-      renderAll(); initStatusBar(); return Promise.resolve();
+      renderAll(); initStatusBar(); if (hasGeoDependentTimer()) startGpsPolling(); return Promise.resolve();
     }
-    return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); initStatusBar(); });
+    return loadDefaultsFromYAML().then(function(c) { timers = c; saveConfig(c); renderAll(); initStatusBar(); if (hasGeoDependentTimer()) startGpsPolling(); });
   }
 
   // ─── Display ───
@@ -1164,68 +1185,130 @@
     return haversine(lat, lon, loc.lat, loc.lng);
   }
 
-  function startGeoWatch() {
-    if (geoState.watchId !== null) return;
+  function gpsIntervalForDist(dist) {
+    var cap = geoState.gpsCapInterval || 60;
+    if (dist < 0) return cap;
+    if (dist < 100) return Math.max(3, Math.round(cap / 6));
+    if (dist < 1000) return Math.max(5, Math.round(cap / 2));
+    return cap;
+  }
+
+  function doGpsTick() {
+    if (!geoState.gpsRunning) return;
     if (!('geolocation' in navigator)) { updateGeoUI(); return; }
-    geoState.watchId = navigator.geolocation.watchPosition(function(pos) {
-      var lat = pos.coords.latitude;
-      var lon = pos.coords.longitude;
+    // Verwendete enableHighAccuracy nur wenn nah an einer Location
+    var minDist = -1;
+    for (var di = 0; di < timers.length; di++) {
+      if (timers[di]._geoDist !== undefined && timers[di].location) {
+        if (minDist < 0 || timers[di]._geoDist < minDist) minDist = timers[di]._geoDist;
+      }
+    }
+    var highAcc = minDist >= 0 && minDist < 200;
+    geoState.active = true;
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      geoState.gpsLastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      geoState.gpsLastFix = Date.now();
       geoState.active = true;
-      updateGeoUI();
-      // Prüfe alle Timer mit Location auf Zonen-Eintritt
       for (var i = 0; i < timers.length; i++) {
         var t = timers[i];
         if (!t.location) continue;
         var loc = getLocByName(t.location);
         if (!loc) continue;
-        var dist = geoDistToLoc(lat, lon, loc);
+        var dist = geoDistToLoc(pos.coords.latitude, pos.coords.longitude, loc);
+        if (dist < 0) continue;
         var inZone = dist >= 0 && dist <= loc.radius;
         var prevInZone = geoState.inZone && geoState.inZone[i];
         if (!geoState.inZone) geoState.inZone = {};
         if (inZone && !prevInZone) {
-          // Zone betreten
           geoState.inZone[i] = true;
           if (!geoState.acked[i]) triggerAlarm(i, t, dist);
         } else if (!inZone && prevInZone) {
-          // Zone verlassen
           geoState.inZone[i] = false;
           clearAlarm(i);
           delete geoState.acked[i];
           saveGeoAcks();
         }
-        // Update Distanz-Anzeige
         t._geoDist = dist;
       }
+      // Dist-Pulse auf allen sichtbaren Entfernungen
+      var pulseEls = document.querySelectorAll('.loc-dist');
+      for (var pj = 0; pj < pulseEls.length; pj++) {
+        pulseEls[pj].classList.remove('dist-pulse');
+        void pulseEls[pj].offsetWidth;
+        pulseEls[pj].classList.add('dist-pulse');
+      }
+      updateGeoUI();
+      scheduleGpsTick();
     }, function(err) {
       geoState.active = false;
       updateGeoUI();
-    }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
-    // Wake Lock anfordern für GPS
-    if (wakeEnabled()) reqWake();
-    updateGeoUI();
+      scheduleGpsTick();
+    }, { enableHighAccuracy: highAcc, maximumAge: 30000, timeout: 15000 });
   }
 
-  function stopGeoWatch() {
-    if (geoState.watchId !== null) {
-      navigator.geolocation.clearWatch(geoState.watchId);
-      geoState.watchId = null;
+  function scheduleGpsTick() {
+    if (!geoState.gpsRunning) return;
+    if (geoState.gpsWatchTimer) {
+      clearTimeout(geoState.gpsWatchTimer);
+      geoState.gpsWatchTimer = null;
+    }
+    var minDist = -1;
+    for (var si = 0; si < timers.length; si++) {
+      if (timers[si]._geoDist !== undefined && timers[si].location) {
+        if (minDist < 0 || timers[si]._geoDist < minDist) minDist = timers[si]._geoDist;
+      }
+    }
+    var interval = gpsIntervalForDist(minDist);
+    geoState.gpsWatchTimer = setTimeout(doGpsTick, interval * 1000);
+  }
+
+  function startGpsPolling() {
+    if (geoState.gpsRunning) return;
+    if (!('geolocation' in navigator)) { updateGeoUI(); return; }
+    geoState.gpsRunning = true;
+    geoState.active = true;
+    updateGeoUI();
+    updateGpsHeaderBtn();
+    if (wakeEnabled()) reqWake();
+    doGpsTick();
+  }
+
+  function stopGpsPolling() {
+    geoState.gpsRunning = false;
+    if (geoState.gpsWatchTimer !== null) {
+      clearTimeout(geoState.gpsWatchTimer);
+      geoState.gpsWatchTimer = null;
     }
     geoState.active = false;
-    // Repeat-Timer stoppen
+    geoState.gpsLastPos = null;
     for (var k in geoState.repeatTimers) {
       clearInterval(geoState.repeatTimers[k]);
       delete geoState.repeatTimers[k];
     }
-    // Distanzen zurücksetzen
     for (var i = 0; i < timers.length; i++) {
       delete timers[i]._geoDist;
     }
     updateGeoUI();
+    updateGpsHeaderBtn();
   }
 
-  function toggleGeoWatch() {
-    if (geoState.watchId !== null) { stopGeoWatch(); }
-    else { startGeoWatch(); }
+  function toggleGpsPolling() {
+    if (geoState.gpsRunning) { stopGpsPolling(); }
+    else { startGpsPolling(); }
+  }
+
+  function updateGpsHeaderBtn() {
+    var btn = document.getElementById('gpsToggleBtn');
+    if (!btn) return;
+    if (geoState.gpsRunning) {
+      btn.classList.add('header-btn-gps-on');
+      btn.textContent = '\uD83D\uDCCD';
+      btn.title = 'GPS aktiv \u2013 klicken zum Stoppen';
+    } else {
+      btn.classList.remove('header-btn-gps-on');
+      btn.textContent = '\uD83D\uDCCD';
+      btn.title = 'GPS inaktiv \u2013 klicken zum Starten';
+    }
   }
 
   function triggerAlarm(idx, t, dist) {
@@ -1310,7 +1393,7 @@
         geoEl.innerHTML = '<span class="geo-inactive">\u26A0 GPS inaktiv \u2013 App offen lassen</span>'
           + ' <button class="alarm-btn geo-start-btn" style="font-size:0.7rem;padding:2px 8px">GPS start</button>';
       var startBtn = geoEl.querySelector('.geo-start-btn');
-      if (startBtn) startBtn.addEventListener('click', startGeoWatch);
+      if (startBtn) startBtn.addEventListener('click', startGpsPolling);
       }
     }
     var statusEl = document.getElementById('geoStatus');
@@ -1372,9 +1455,15 @@
     var h = '';
     for (var i = 0; i < locations.length; i++) {
       var l = locations[i];
+      var gpsInfo = '';
+      if (geoState.gpsLastPos && geoState.gpsLastFix) {
+        var d = haversine(geoState.gpsLastPos.lat, geoState.gpsLastPos.lng, l.lat, l.lng);
+        var age = Math.round((Date.now() - geoState.gpsLastFix) / 1000);
+        gpsInfo = ' \u00B7 \uD83D\uDD0D ' + Math.round(d) + 'm \u00B7 \u23F1 ' + age + 's';
+      }
       h += '<div class="loc-config-item">'
         + '<div class="info"><div class="name">' + esc(l.name) + '</div>'
-        + '<div class="coords">' + l.lat + ', ' + l.lng + ' \u00B7 ' + l.radius + 'm Radius</div></div>'
+        + '<div class="coords">' + l.lat + ', ' + l.lng + ' \u00B7 ' + l.radius + 'm Radius' + gpsInfo + '</div></div>'
         + '<button class="remove-btn" data-idx="'+i+'">\u2715</button></div>';
     }
     c.innerHTML = h;
@@ -1861,7 +1950,9 @@
       }
     });
     var geoStatusEl = document.getElementById('geoStatus');
-    if (geoStatusEl) geoStatusEl.addEventListener('click', toggleGeoWatch);
+    if (geoStatusEl) geoStatusEl.addEventListener('click', toggleGpsPolling);
+    var gpsToggleBtn = document.getElementById('gpsToggleBtn');
+    if (gpsToggleBtn) gpsToggleBtn.addEventListener('click', toggleGpsPolling);
     document.getElementById('editForm').addEventListener('submit', function(e) {
       e.preventDefault();
       saveEdit(new FormData(this));
@@ -1875,7 +1966,7 @@
       navigator.serviceWorker.register('sw.js');
       if ('caches' in window) {
         caches.keys().then(function(keys) {
-          keys.forEach(function(k) { if (k !== 'redzone-v2') caches.delete(k); });
+          keys.forEach(function(k) { if (k !== 'redzone-v3') caches.delete(k); });
         });
       }
     }
