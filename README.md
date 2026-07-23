@@ -95,3 +95,11 @@ Open Settings → **Systemprüfung** to check which PWA features your device sup
 - **Screen Wake Lock API** – `navigator.wakeLock.request('screen')` + video fallback
 - **Fullscreen API** – `requestFullscreen` for kiosk mode
 - **Geolocation API** – geofence checkin with adaptive polling
+
+## Planned
+
+- **Webhook event logging** – POST events (reset, ack, schedule_taken) to a configurable webhook URL
+  - **Option A: Google Forms (DAU)** – zero backend, events land in a Google Sheet via POST to a form URL
+  - **Option B: Python server** – Flask backend with SQLite, bidirectional sync (`last_actions` response)
+  - Shared offline queue in localStorage, settings UI for URL + secret + instance ID
+  - See [SPEC.md §10](SPEC.md#10-webhook-implementation-event-logging) for full spec

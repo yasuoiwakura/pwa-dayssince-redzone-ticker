@@ -363,3 +363,235 @@ timers:
 - Abhängigkeit von Google-APIs
 
 **Status:** Zu evaluieren – abhängig davon ob die App öffentlich betrieben wird oder nur lokal im HomeLab.
+
+## 10. Webhook-Implementation (Event Logging)
+
+Zwei Implementierungsoptionen, die dasselbe frontend-seitige `sendWebhook()`-Interface teilen:
+
+### 10.1 Gemeinsames Frontend-Interface
+
+```javascript
+// Aufruf an allen 3 Event-Stellen:
+//   resetTimer(index)       → action: "reset"
+//   ackAlarm(index)         → action: "ack"
+//   markSlotTaken(idx, ts)  → action: "schedule_taken"
+
+function sendWebhook(action, timerName, details) {
+  var cfg = loadWebhookConfig();      // { url, secret } aus localStorage
+  if (!cfg || !cfg.url) return;
+
+  var payload = {
+    app: "redzone-reminder",
+    instance: cfg.instance_id,
+    timestamp: new Date().toISOString(),
+    action: action,
+    timer: timerName,
+    details: details || {}
+  };
+
+  // Optional: SHA-256-Hash des Secrets als Authorization-Header
+  var headers = { 'Content-Type': 'application/json' };
+  if (cfg.secret) {
+    headers['Authorization'] = 'SHA256 ' + sha256(cfg.secret);
+  }
+
+  fetch(cfg.url, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    mode: cfg.cors ? 'cors' : 'no-cors',   // Option 1: no-cors, Option 2: cors
+    headers: headers
+  }).then(function(r) {
+    if (cfg.cors && r.ok) {
+      r.json().then(function(data) {
+        if (data && data.last_actions) {
+          localStorage.setItem('redzone_last_actions', JSON.stringify(data.last_actions));
+        }
+        flushOfflineQueue();  // gesammelte Events nachsenden
+      });
+    }
+  }).catch(function() {
+    queueOfflineEvent(payload);
+  });
+}
+```
+
+#### Settings-UI (localStorage-Keys)
+
+| Key | Typ | Beschreibung |
+|---|---|---|
+| `redzone_webhook_url` | string | Webhook- oder Google-Form-URL |
+| `redzone_webhook_secret` | string | Optionaler SHA-256-Hash-Schlüssel |
+| `redzone_webhook_instance_id` | string | Geräte-ID (UUID, automatisch generiert) |
+| `redzone_webhook_cors` | boolean | `true` für Python-Backend, `false` für Google Forms |
+| `redzone_webhook_queue` | JSON-Array | Offline-Queue (automatisch) |
+| `redzone_last_actions` | JSON | Letzter Sync-Stand (nur bei cors=true) |
+
+Settings-Dialog: Ein Abschnitt "Webhook" mit URL-Feld, Secret-Feld, Instance-ID (auto), Test-Button.
+
+#### Offline-Queue
+
+```javascript
+var QUEUE_KEY = 'redzone_webhook_queue';
+
+function queueOfflineEvent(payload) {
+  var q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+  q.push(payload);
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+}
+
+function flushOfflineQueue() {
+  var q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+  if (!q.length) return;
+  localStorage.removeItem(QUEUE_KEY);
+  q.forEach(function(ev) { sendWebhook(ev.action, ev.timer, ev.details); });
+}
+```
+
+### 10.2 Option 1: Google Forms (DAU-Variante)
+
+Kein Backend, kein Server, kein Apps Script.
+
+**Setup für DAU:**
+1. `forms.google.com` → neues leeres Formular
+2. Drei Kurztext-Felder: `action`, `timer`, `details`
+3. URL aus der Adressleiste kopieren (ENDET mit `/viewform`)
+4. In der App unter Settings → Webhook-URL einfügen
+5. Fertig – Events landen als Zeilen in der verknüpften Google-Tabelle
+
+**Frontend:**
+- `mode: 'no-cors'` (Google Forms sendet keine CORS-Header)
+- Feld-IDs müssen bekannt sein (`entry.123456` etc.) – **HACK:** Die Form-URL enthält die Feld-IDs. Da Google Forms `entry.NNNNN`-Namen verwendet, die pro Formular unterschiedlich sind, MUSS der DAU die Feld-IDs entweder manuell aus dem Formular-HTML kopieren, oder die App stellt einen 3-Felder-Adapter bereit:
+  - Der DAU legt die 3 Felder in einer bestimmten Reihenfolge an: #1 `action`, #2 `timer`, #3 `details` (ISO-Timestamp wird automatisch vom Sheet gesetzt)
+  - `entry.0` = action, `entry.1` = timer, `entry.2` = details
+  - ODER: die App bietet ein Popup, das dem DAU die 3 Feld-IDs einzeln abfragt (komfortabler)
+- Response ist leerer 200-HTML → kein Sync, kein `last_actions`
+- Offline-Queue kann bei blindem `no-cors` nur verzögert feuern, nicht gezielt flushen
+- **CAPTCHA-Risiko:** Google kann automatisierte POSTs blockieren – dokumentieren, nicht behebbar
+
+**Grenzen:**
+- ❌ Kein Sync (`last_actions` nicht lesbar)
+- ❌ Offline-Queue ohne Bestätigung
+- ✅ 0 €, 0 Server, 2 Minuten Setup
+
+### 10.3 Option 2: Python-Backend (vollständiger Webhook)
+
+Ermöglicht bidirektionalen Sync: App schreibt → Backend speichert + gibt `last_actions` zurück.
+
+#### Repo-Struktur (nach Umbau)
+
+```
+/
+├── frontend/
+│   ├── index.html          – App (unverändert bis auf webhook-Funktion)
+│   ├── sw.js               – Service Worker
+│   ├── manifest.json
+│   ├── timers.yaml
+│   └── icon.svg
+├── backend/
+│   ├── server.py           – Flask-Webhook-Server (MVP: ~80 Zeilen)
+│   ├── requirements.txt    – Abhängigkeiten
+│   └── data/
+│       └── events.db       – SQLite (gitignoriert)
+├── SPEC.md
+├── README.md
+└── ...
+```
+
+**GitHub Pages:** In Repo-Settings auf `/frontend` umstellen.
+
+#### Backend-Spezifikation (server.py)
+
+**Framework:** Flask (eine Dependency, kein asyncio nötig)
+
+**Endpunkte:**
+
+| Methode | Pfad | Beschreibung |
+|---|---|---|
+| `POST` | `/webhook` | Event empfangen, speichern, `last_actions` zurückgeben |
+| `GET` | `/health` | Healthcheck |
+| `GET` | `/dashboard` | (optional) HTML-Liste der letzten 100 Events |
+
+**POST `/webhook` – Request:**
+
+```json
+{
+  "app": "redzone-reminder",
+  "instance": "<uuid>",
+  "timestamp": "<ISO-8601>",
+  "action": "reset" | "ack" | "schedule_taken",
+  "timer": "<timer-name>",
+  "details": {
+    "scheduled_time": "08:00",
+    "actual_time": "08:05"
+  }
+}
+```
+
+**POST `/webhook` – Response:**
+
+```json
+{
+  "status": "ok",
+  "last_actions": {
+    "Parkscheibe": { "action": "ack", "timestamp": "2026-07-23T15:25:00Z" },
+    "Pille": { "action": "schedule_taken", "timestamp": "2026-07-23T15:30:00Z", "scheduled_time": "14:00" }
+  }
+}
+```
+
+**SQLite-Schema:**
+
+```sql
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action TEXT NOT NULL,
+  timer TEXT NOT NULL,
+  instance_id TEXT,
+  payload_json TEXT,
+  received_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+`last_actions`-Query: `SELECT timer, action, payload_json, received_at FROM events WHERE id IN (SELECT MAX(id) FROM events GROUP BY timer)`
+
+**Optionaler Auth-Middleware:**
+- Erwartet `Authorization: SHA256 <hash>`-Header
+- Vergleicht gegen `WEBHOOK_SECRET`-Umgebungsvariable
+- Fehlt der Header oder stimmt der Hash nicht → `401`
+
+**Start (lokal):**
+
+```bash
+pip install flask
+python backend/server.py
+# → http://localhost:5000
+```
+
+**TODO für MVP:**
+- [ ] `server.py` mit POST /webhook + SQLite + last_actions-Query
+- [ ] `requirements.txt`
+- [ ] `.gitignore` mit `backend/data/`
+- [ ] Dockerfile (optional, für HomeLab)
+- [ ] README-Setup-Abschnitt fürs Backend
+
+### 10.4 Konfiguration im Frontend (beide Optionen)
+
+Die App entscheidet anhand `redzone_webhook_cors` in localStorage:
+- `cors: false` → `mode: 'no-cors'`, Google-Forms-URL, kein Response-Handling
+- `cors: true` → `mode: 'cors'`, Python-Backend-URL, parst Response für Sync
+
+Die Settings-UI zeigt je nach Modus unterschiedliche Hinweise:
+- **DAU-Modus:** "Google Forms URL einfügen – Feld-Reihenfolge: action, timer, details"
+- **Server-Modus:** "Python-Backend-URL eintragen – inkl. Port"
+
+### 10.5 Testmatrix Webhook
+
+| Szenario | Erwartung | Option 1 | Option 2 |
+|---|---|---|---|
+| Reset normaler Timer | POST mit action=reset | ✅ | ✅ |
+| Ack Checkin | POST mit action=ack | ✅ | ✅ |
+| Schedule-Slot geklickt | POST mit action=schedule_taken | ✅ | ✅ |
+| Keine URL konfiguriert | Kein POST | ✅ | ✅ |
+| Server nicht erreichbar | Event in Offline-Queue | ✅ | ✅ |
+| Server wieder da | Queue wird geflusht | ❌ (kein Sync) | ✅ |
+| Mehrere Geräte | last_actions syncen | ❌ | ✅ |
