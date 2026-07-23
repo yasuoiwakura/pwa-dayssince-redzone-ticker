@@ -1388,7 +1388,8 @@
     if (!t.notify) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     var locName = t.location || 'unbekannter Ort';
-    sendTestNotification(t.name + ' @ ' + locName, Math.round(dist) + 'm');
+    var msg = t.name + ' @ ' + locName + ' (' + Math.round(dist) + 'm)';
+    sendTestNotification(msg, msg);
   }
 
   function sendTestNotification(title, body) {
