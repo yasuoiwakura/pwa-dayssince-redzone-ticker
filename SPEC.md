@@ -268,3 +268,20 @@ timers:
 - **Datenschutz:** Aktionen + Zeitstempel sind ggf. personenbezogen – DSGVO-konforme Lösung nötig falls öffentlich betrieben.
 - **Backend:** Einfaches Python-Skript im HomeLab vs. InfluxDB für Zeitreihen-Auswertung. Webhook-Ansatz ist agnostisch und erlaubt beides.
 - **Secret-Hash:** Client-seitig gehashtes Secret (SHA-256) im Authorization-Header, Server vergleicht gegen konfigurierten Hash – kein Klartext-Secret über die Leitung.
+
+### 9.7 Zu klärende Backend-Option: Google Sheets + Apps Script
+
+**Idee:** Kein eigener Server – ein Google Apps Script (als Web App deployed) schreibt die Webhook-Payloads in ein Google Sheet und liefert die letzten Aktionen zurück.
+
+**Vorteile:**
+- 0 € Kosten (Google-Konto reicht)
+- Daten sofort menschlich lesbar + pivotierbar
+- Keine Infrastruktur (Auth via Google, kein eigener Server)
+- Apps Script kann den Sync (letzte Aktionen pro Timer) abbilden
+
+**Nachteile:**
+- Latenz (Google-Server, nicht selbst kontrolliert)
+- Rate-Limits (Google Apps Script: ~30s Execution)
+- Abhängigkeit von Google-APIs
+
+**Status:** Zu evaluieren – abhängig davon ob die App öffentlich betrieben wird oder nur lokal im HomeLab.
