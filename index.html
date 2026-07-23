@@ -360,6 +360,32 @@
     margin: 16px 0 8px 0; padding-top: 12px; border-top: 1px solid #2a2a2a;
   }
 
+  #permModal { max-width: 420px; }
+  #permModal h2 { margin-bottom: 4px; }
+  .perm-subtitle { font-size: 0.75rem; color: #888; margin-bottom: 16px; }
+  .perm-item {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 12px 0; border-bottom: 1px solid #2a2a2a;
+  }
+  .perm-item:last-child { border-bottom: none; }
+  .perm-item-header { display: flex; align-items: center; gap: 8px; }
+  .perm-item-name { font-size: 0.95rem; font-weight: bold; }
+  .perm-item-desc { font-size: 0.78rem; color: #888; margin-left: 28px; }
+  .perm-item-actions { display: flex; align-items: center; gap: 10px; margin-left: 28px; margin-top: 4px; }
+  .perm-status { font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; }
+  .perm-status-granted { background: #22aa2244; color: #33ff33; }
+  .perm-status-denied { background: #ff333344; color: #ff3333; }
+  .perm-status-default { background: #ffcc0044; color: #ffcc00; }
+  .perm-btn {
+    background: #2a2a2a; color: #fff; border: 1px solid #555;
+    border-radius: 4px; padding: 4px 12px; font-family: inherit;
+    font-size: 0.75rem; cursor: pointer;
+  }
+  .perm-btn:hover { background: #3a3a3a; }
+  .perm-btn:disabled { opacity: 0.4; cursor: default; }
+  .perm-btn-primary { background: #22aa22; border-color: #22aa22; }
+  .perm-btn-primary:hover { background: #2ccc2c; }
+
   @media (max-width: 400px) {
     body { padding: 12px 10px; gap: 8px; }
     dialog { padding: 16px; }
@@ -444,6 +470,7 @@
     <button id="addTimerBtn">+ Timer</button>
     <button id="resetDefaultsBtn">Standard laden</button>
     <button id="sysTestBtn">Systempr&uuml;fung</button>
+    <button id="permBtn">Berechtigungen</button>
     <button id="refreshBtn" class="btn-danger">App aktualisieren</button>
     <button id="closeSettingsBtn" class="btn-primary">Fertig</button>
   </div>
@@ -506,6 +533,15 @@
       <button type="submit" class="btn-primary">Speichern</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="permModal">
+  <h2>Zugriffsrechte</h2>
+  <div class="perm-subtitle">F&uuml;r Geofence-Reminder und Push-Benachrichtigungen ben&ouml;tigt die App folgende Berechtigungen:</div>
+  <div id="permList"></div>
+  <div class="modal-actions">
+    <button id="closePermBtn" class="btn-primary">Fertig</button>
+  </div>
 </dialog>
 
 <dialog id="locEditModal">
@@ -1586,6 +1622,91 @@
     c.innerHTML = h;
   }
 
+  // ─── Permissions ───
+  function openPermModal() {
+    renderPermList();
+    document.getElementById('settingsModal').close();
+    document.getElementById('permModal').showModal();
+  }
+
+  function renderPermList() {
+    var c = document.getElementById('permList');
+    if (!c) return;
+    var geoStatus = 'default';
+    if (!('geolocation' in navigator)) geoStatus = 'denied';
+    else if ('permissions' in navigator && navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(function(status) {
+        geoStatus = status.state;
+        renderPermItems(c, geoStatus);
+      })['catch'](function() { renderPermItems(c, 'default'); });
+    } else {
+      renderPermItems(c, 'unavailable');
+    }
+  }
+
+  function renderPermItems(c, geoStatus) {
+    var pushStatus = ('Notification' in window) ? Notification.permission : 'denied';
+    var h = '';
+
+    // GPS
+    var geoIcon = geoStatus === 'granted' ? '\u2705' : (geoStatus === 'denied' ? '\u274C' : '\u26A0\uFE0F');
+    var geoLabel = geoStatus === 'granted' ? 'Erlaubt' : (geoStatus === 'denied' ? 'Verweigert' : 'Nicht angefragt');
+    var geoCls = 'perm-status-' + geoStatus;
+    h += '<div class="perm-item">'
+      + '<div class="perm-item-header"><span>' + geoIcon + '</span><span class="perm-item-name">Standort (GPS)</span></div>'
+      + '<div class="perm-item-desc">Ben\u00f6tigt f\u00fcr Geofence-Reminder: erkennt wenn du dich einem Ort n\u00e4herst (z.B. Einkaufszentrum).</div>'
+      + '<div class="perm-item-actions">'
+      +   '<span class="perm-status ' + geoCls + '">' + geoLabel + '</span>'
+      +   '<button class="perm-btn perm-btn-primary" id="requestGeoPerm">Anfordern</button>'
+      +   '<button class="perm-btn" id="openGeoSettings">OS-Einstellungen</button>'
+      + '</div></div>';
+
+    // Push Notifications
+    var pushIcon = pushStatus === 'granted' ? '\u2705' : (pushStatus === 'denied' ? '\u274C' : '\u26A0\uFE0F');
+    var pushLabel = pushStatus === 'granted' ? 'Erlaubt' : (pushStatus === 'denied' ? 'Verweigert' : 'Nicht angefragt');
+    var pushCls = 'perm-status-' + pushStatus;
+    h += '<div class="perm-item">'
+      + '<div class="perm-item-header"><span>' + pushIcon + '</span><span class="perm-item-name">Push-Benachrichtigungen</span></div>'
+      + '<div class="perm-item-desc">Ben\u00f6tigt f\u00fcr System-Benachrichtigungen bei Geofence-Eintritt (auch wenn App minimiert ist).</div>'
+      + '<div class="perm-item-actions">'
+      +   '<span class="perm-status ' + pushCls + '">' + pushLabel + '</span>'
+      +   '<button class="perm-btn perm-btn-primary" id="requestPushPerm">Anfordern</button>'
+      +   '<button class="perm-btn" id="openPushSettings">OS-Einstellungen</button>'
+      + '</div></div>';
+
+    c.innerHTML = h;
+
+    // Event-Listener f\u00fcr Request-Buttons
+    document.getElementById('requestGeoPerm').addEventListener('click', function() {
+      if (!('geolocation' in navigator)) return;
+      navigator.geolocation.getCurrentPosition(function() {
+        renderPermList(); // neu laden
+      }, function() {}, { enableHighAccuracy: true, timeout: 5000 });
+    });
+    document.getElementById('requestPushPerm').addEventListener('click', function() {
+      if (!('Notification' in window)) return;
+      Notification.requestPermission().then(function() {
+        renderPermList();
+      });
+    });
+
+    // OS-Einstellungen-Buttons
+    document.getElementById('openGeoSettings').addEventListener('click', openSystemSettings);
+    document.getElementById('openPushSettings').addEventListener('click', openSystemSettings);
+  }
+
+  function openSystemSettings() {
+    // Android: App-Info-Seite \u00f6ffnen
+    var intent = 'intent://settings/#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;end';
+    try {
+      window.location.href = intent;
+    } catch(e) {}
+    // Fallback: Hinweis anzeigen
+    setTimeout(function() {
+      alert('Bitte \u00f6ffne die Systemeinstellungen \u2192 Apps \u2192 Red Zone Reminder \u2192 Berechtigungen');
+    }, 100);
+  }
+
   window.addEventListener('beforeinstallprompt', function(e) {
     e.preventDefault();
     deferredPrompt = e;
@@ -1671,6 +1792,12 @@
     });
     document.getElementById('rerunSysTest').addEventListener('click', function() {
       runSysTest();
+    });
+    document.getElementById('permBtn').addEventListener('click', function() {
+      openPermModal();
+    });
+    document.getElementById('closePermBtn').addEventListener('click', function() {
+      document.getElementById('permModal').close();
     });
     document.getElementById('refreshBtn').addEventListener('click', function() {
       document.getElementById('settingsModal').close();
