@@ -385,6 +385,10 @@
   .perm-btn:disabled { opacity: 0.4; cursor: default; }
   .perm-btn-primary { background: #22aa22; border-color: #22aa22; }
   .perm-btn-primary:hover { background: #2ccc2c; }
+  .perm-test-result {
+    font-size: 0.73rem; color: #aaa; margin-left: 28px; margin-top: 6px;
+    padding: 4px 8px; background: #1a1a1a; border-radius: 4px;
+  }
 
   @media (max-width: 400px) {
     body { padding: 12px 10px; gap: 8px; }
@@ -1648,7 +1652,7 @@
     var pushStatus = ('Notification' in window) ? Notification.permission : 'denied';
     var h = '';
 
-    // GPS
+    var geoTestId = 'geoTestResult';
     var geoIcon = geoStatus === 'granted' ? '\u2705' : (geoStatus === 'denied' ? '\u274C' : '\u26A0\uFE0F');
     var geoLabel = geoStatus === 'granted' ? 'Erlaubt' : (geoStatus === 'denied' ? 'Verweigert' : 'Nicht angefragt');
     var geoCls = 'perm-status-' + geoStatus;
@@ -1658,10 +1662,14 @@
       + '<div class="perm-item-actions">'
       +   '<span class="perm-status ' + geoCls + '">' + geoLabel + '</span>'
       +   '<button class="perm-btn perm-btn-primary" id="requestGeoPerm">Anfordern</button>'
+      +   (geoStatus === 'granted' ? '<button class="perm-btn" id="testGeoPerm">Testen</button>' : '')
       +   '<button class="perm-btn" id="openGeoSettings">OS-Einstellungen</button>'
-      + '</div></div>';
+      + '</div>'
+      + '<div class="perm-test-result" id="' + geoTestId + '"></div>'
+      + '</div>';
 
     // Push Notifications
+    var pushStatus = ('Notification' in window) ? Notification.permission : 'denied';
     var pushIcon = pushStatus === 'granted' ? '\u2705' : (pushStatus === 'denied' ? '\u274C' : '\u26A0\uFE0F');
     var pushLabel = pushStatus === 'granted' ? 'Erlaubt' : (pushStatus === 'denied' ? 'Verweigert' : 'Nicht angefragt');
     var pushCls = 'perm-status-' + pushStatus;
@@ -1671,24 +1679,72 @@
       + '<div class="perm-item-actions">'
       +   '<span class="perm-status ' + pushCls + '">' + pushLabel + '</span>'
       +   '<button class="perm-btn perm-btn-primary" id="requestPushPerm">Anfordern</button>'
+      +   (pushStatus === 'granted' ? '<button class="perm-btn" id="testPushPerm">Testen</button>' : '')
       +   '<button class="perm-btn" id="openPushSettings">OS-Einstellungen</button>'
-      + '</div></div>';
+      + '</div>'
+      + '<div class="perm-test-result" id="pushTestResult"></div>'
+      + '</div>';
 
     c.innerHTML = h;
 
     // Event-Listener f\u00fcr Request-Buttons
     document.getElementById('requestGeoPerm').addEventListener('click', function() {
       if (!('geolocation' in navigator)) return;
-      navigator.geolocation.getCurrentPosition(function() {
-        renderPermList(); // neu laden
-      }, function() {}, { enableHighAccuracy: true, timeout: 5000 });
+      var el = document.getElementById(geoTestId);
+      if (el) el.textContent = 'Fordere Standort an...';
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        var el2 = document.getElementById(geoTestId);
+        if (el2) el2.textContent = pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6) + ' \u00B1' + pos.coords.accuracy + 'm';
+        renderPermList();
+      }, function(err) {
+        var el2 = document.getElementById(geoTestId);
+        if (el2) el2.textContent = 'Fehler: ' + err.message;
+        renderPermList();
+      }, { enableHighAccuracy: true, timeout: 5000 });
     });
     document.getElementById('requestPushPerm').addEventListener('click', function() {
       if (!('Notification' in window)) return;
-      Notification.requestPermission().then(function() {
+      var el = document.getElementById('pushTestResult');
+      if (el) el.textContent = 'Fordere Berechtigung an...';
+      Notification.requestPermission().then(function(perm) {
+        var el2 = document.getElementById('pushTestResult');
+        if (el2) el2.textContent = perm === 'granted' ? 'Berechtigung erteilt' : 'Berechtigung verweigert';
+        if (perm === 'granted') {
+          try { new Notification('Test', { body: 'Push funktioniert!' }); } catch(e) {}
+        }
         renderPermList();
       });
     });
+
+    // Test-Buttons
+    var testGeoBtn = document.getElementById('testGeoPerm');
+    if (testGeoBtn) {
+      testGeoBtn.addEventListener('click', function() {
+        if (!('geolocation' in navigator)) return;
+        var el = document.getElementById(geoTestId);
+        if (el) el.textContent = 'Ermittle Position...';
+        navigator.geolocation.getCurrentPosition(function(pos) {
+          var el2 = document.getElementById(geoTestId);
+          if (el2) el2.textContent = '\u2705 ' + pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6) + ' \u00B1' + Math.round(pos.coords.accuracy) + 'm';
+        }, function(err) {
+          var el2 = document.getElementById(geoTestId);
+          if (el2) el2.textContent = '\u274C Fehler: ' + err.message;
+        }, { enableHighAccuracy: true, timeout: 8000 });
+      });
+    }
+    var testPushBtn = document.getElementById('testPushPerm');
+    if (testPushBtn) {
+      testPushBtn.addEventListener('click', function() {
+        var el = document.getElementById('pushTestResult');
+        if (el) el.textContent = 'Sende Test-Benachrichtigung...';
+        try {
+          new Notification('Red Zone Reminder', { body: 'Push-Benachrichtigungen funktionieren!' });
+          if (el) el.textContent = '\u2705 Test-Notification gesendet';
+        } catch(e) {
+          if (el) el.textContent = '\u274C Fehler: ' + e.message;
+        }
+      });
+    }
 
     // OS-Einstellungen-Buttons
     document.getElementById('openGeoSettings').addEventListener('click', openSystemSettings);
