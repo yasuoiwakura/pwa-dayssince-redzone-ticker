@@ -6,6 +6,7 @@ gps_interval: 60
 
 locations:
   - name: Zuhause
+    radius: 50
   - name: Shoppingcenter
     lat: 52.419667618511795
     lng: 9.596403056686585
